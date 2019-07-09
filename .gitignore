@@ -1,0 +1,7 @@
+/beer_machine_mqtt/EWARM/*
+!/beer_machine_mqtt/EWARM/beer_machine_mqtt.ewp
+!/beer_machine_mqtt/EWARM/beer_machine_mqtt.ewd
+!/beer_machine_mqtt/EWARM/Project.eww
+!/beer_machine_mqtt/EWARM/startup_stm32f103xe.s
+!/beer_machine_mqtt/EWARM/stm32f103xe_flash.icf
+!/beer_machine_mqtt/EWARM/stm32f103xe_sram.icf
