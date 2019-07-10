@@ -15,14 +15,17 @@
 *                                                                            
 ****************************************************************************************/
 #include "string.h"
+#include "stdarg.h"
 #include "debug_assert.h"
 #include "xuart.h"
+#include "tiny_timer.h"
 #include "cmsis_os.h"
 #include "at.h"
 #include "log.h"
 
+
 /**
-* @brief AT指令构建
+* @brief AT指令初始化
 * @details
 * @param command AT指令指针
 * @param handle 串口句柄
@@ -30,167 +33,350 @@
 * @param response 指向缓存回应数据的地址
 * @param response_limit 缓存回应数据的最大长度
 * @param timeout 等待超时时间
-* @return 初始化是否成功
-* @retval 0 成功
-* @retval -1 失败
 * @attention
 * @note
 */
-int at_command_build(at_command_t *command,xuart_handle_t *handle,char *request,uint16_t request_size,char *response,uint16_t response_limit,uint16_t timeout)
+void at_command_init(at_command_t *command,xuart_handle_t *handle,char *request,uint16_t request_size,char *response,uint16_t response_limit,uint16_t timeout)
 {
-    if (command == NULL) {
-        log_error("at command is null.\r\n");
-        return -1;
-    }
+    log_assert_null_ptr(command);
+
+    memset(command,0,sizeof(at_command_t));
+
     command->handle = handle;
     command->request = request;
     command->request_size = request_size;
     command->response = response;
     command->response_limit = response_limit;
-    command->timeout = timeout;
-
-    return 0;   
+    command->timeout = timeout;  
 }
+
+
+/**
+* @brief AT指令添加期望的解析成功码
+* @details
+* @param command AT指令指针
+* @param code 解析成功的返回值
+* @param cnt 成功的字符串数量
+* @param ... 成功的字符串
+* @return 无
+* @attention
+* @note
+*/
+void at_command_add_success_code(at_command_t *command,int code,uint8_t cnt,...)
+{
+    va_list ap;
+    
+    log_assert_null_ptr(command);
+    log_assert_bool_false(cnt <= AT_CMD_SUCCESS_CNT_MAX);
+
+    va_start(ap,cnt);
+
+    for (uint8_t i = 0;i < cnt;i ++) {
+        command->code_parse.success[i] = va_arg(ap,char *);
+    }
+    command->code_parse.success_code = code;
+    command->code_parse.success_cnt = cnt;
+    
+}
+
+/**
+* @brief AT指令添加期望的解析失败错误码
+* @details
+* @param command AT指令指针
+* @param code 解析失败的返回值
+* @param cnt 失败的字符串数量
+* @param ... 失败的字符串
+* @return 无
+* @attention
+* @note
+*/
+void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...)
+{
+    va_list ap;
+    
+    log_assert_null_ptr(command);
+    log_assert_bool_false(cnt <= AT_CMD_SUCCESS_CNT_MAX);
+
+    va_start(ap,cnt);
+
+    for (uint8_t i = 0;i < cnt;i ++) {
+        command->code_parse.fail[i] = va_arg(ap,char *);
+    }
+    command->code_parse.fail_code = code;
+    command->code_parse.fail_cnt = cnt;
+
+}
+
+/**
+* @brief AT指令添加回应值前缀
+* @details
+* @param command AT指令指针
+* @param prefix 值的前缀
+* @return 无
+* @attention
+* @note
+*/
+void at_command_add_value_prefix(at_command_t *command,char *prefix)
+{
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(prefix);
+
+    command->value_parse.prefix = prefix;
+}
+/**
+* @brief AT指令设置回应中数据量的大小，主要用在数据接收
+* @details
+* @param command AT指令指针
+* @param size 数据量的大小
+* @return 无
+* @attention
+* @note
+*/
+void at_command_set_response_data_size(at_command_t *command,uint16_t size)
+{
+    log_assert_null_ptr(command);
+
+    command->parse_offset = size;
+}
+
+
+/**
+* @brief AT指令解析回应，并得到错误码
+* @details
+* @param command AT指令指针
+* @param token 比对的字符串
+* @param code 解析得到的错误码
+* @return 是否解析到期望的值 0 是 -1 否
+* @attention
+* @note
+*/
+static int at_command_parse_code(at_command_t *command,char *token,int *code)
+{
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(token);
+    log_assert_null_ptr(code);
+
+    for (uint8_t i = 0;i < command->code_parse.success_cnt;i ++) {
+        if (strncmp(command->code_parse.success[i],token,strlen(command->code_parse.success[i])) == 0) {
+            *code = command->code_parse.success_code;
+            return 0;
+        }
+    }
+    for (uint8_t i = 0;i < command->code_parse.fail_cnt;i ++) {
+        if (strncmp(command->code_parse.fail[i],token,strlen(command->code_parse.fail[i])) == 0) {
+            *code = command->code_parse.fail_code;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/**
+* @brief AT指令解析回应，并得到错误码
+* @details
+* @param command AT指令指针
+* @param token 比对的字符串
+* @param code 解析得到的错误码
+* @return 是否解析到期望的值 0 是 -1 否
+* @attention
+* @note
+*/
+static void at_command_parse_value(at_command_t *command,char *token)
+{
+    char *prefix;
+    char *value;
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(token);
+
+    /*需要解析值*/
+    if (command->value_parse.prefix) {
+        prefix = strtok(token,VALUE_PREFIX_SEPARATOR);
+        if (prefix && strcmp(prefix,command->value_parse.prefix) == 0) {
+            value = strtok(NULL,VALUE_SEPARATOR);
+            while (value && command->value_parse.cnt < AT_VALUE_CNT_MAX) {
+                command->value_parse.value[command->value_parse.cnt] = value;
+                command->value_parse.cnt ++;
+                value = strtok(NULL,VALUE_SEPARATOR);
+            }
+        }
+    }   
+}
+
+
+/**
+* @brief AT指令解析每一帧的回应
+* @details
+* @param command AT指令指针
+* @param frame 回应的帧字符串
+* @return 是否解析到期望的值 0 是 -1 否
+* @attention
+* @note
+*/
+static int at_command_parse_frame(at_command_t *command,char *frame,int *code)
+{
+    int rc;
+    char *line;
+    char *start,*next;
+
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(frame);
+
+    /*找出每一行*/
+    start = frame;
+    while (start) {
+        line = strtok_r(start,CRLF,&next);
+        if (line == NULL) {
+            break;
+        }
+        /*先解析code码*/
+        rc = at_command_parse_code(command,line,code);
+        /*code码找到，直接退出*/
+        if (rc == 0) {
+            return 0;
+        }
+        /*如果没解析出code，尝试解析回应值*/
+        at_command_parse_value(command,line);
+        /*循环*/
+        start = next + strlen(CRLF);
+    }
+
+    return -1;
+}
+
+
+/**
+* @brief AT接收一帧数据
+* @details
+* @param handle 串口句柄
+* @param buffer 缓存数据的指针
+* @param size 缓存大小
+* @param timeout 超时时间
+* @return 发送的数量
+* @attention
+* @note
+*/
+static int at_wait_frame_data(xuart_handle_t *handle,char *buffer,uint16_t size,uint32_t timeout)
+{
+    uint8_t frame_complete = 0;
+    uint32_t select_size;
+    uint32_t read,frame_size = 0;
+
+    /*等待数据*/
+    select_size = xuart_select(handle,timeout);
+    if (select_size == 0) {
+        return 0;
+    }
+    /*轮询等待接收完毕*/
+    while (frame_complete == 0) {  
+        /*判断回应的数据是否超过限制*/
+        if (frame_size + select_size >= size) {
+            log_error("at frame size:%d too large than limit:%d.\r\n",frame_size + select_size,size);
+            return -1;
+        }
+
+        /*读取数据*/
+        read = xuart_read(handle,(uint8_t *)buffer + frame_size,select_size);
+        frame_size += read;
+        /*再次等待数据*/
+        select_size = xuart_select(handle,AT_COMMAND_FRAME_TIMEOUT); 
+        /*接收完一帧数据*/
+        if (select_size == 0) {
+            buffer[frame_size] = '\0';
+            frame_complete = 1;
+        }
+    }
+    return frame_size;
+}
+/**
+* @brief AT发送一帧数据
+* @details
+* @param handle 串口句柄
+* @param buffer 数据指针
+* @param size 数据数量
+* @param timeout 超时时间
+* @return 发送的数量
+* @attention
+* @note
+*/
+static uint32_t at_send_frame_data(xuart_handle_t *handle,char *buffer,uint16_t size,uint32_t timeout)
+{
+    uint32_t write = 0,remain_size;
+
+    if (size > 0) {
+        /*写入输出*/
+        write = xuart_write(handle,(uint8_t *)buffer,size);
+        remain_size = xuart_complete(handle,timeout);
+    }
+
+    return write - remain_size;
+}
+
+
 
 /**
 * @brief AT指令执行
 * @details
 * @param command AT指令指针
-* @return 执行是否成功
-* @retval 0 成功
-* @retval -1 失败
+* @return 执行结果
 * @attention
 * @note
 */
 int at_command_execute(at_command_t *command)
 {
+    int rc,code = -1;
     uint8_t complete = 0;
-    uint32_t select_size,read,read_total = 0;
-    uint32_t write;
+    int frame_size,response_size;
+    uint32_t parse_start_offset = 0;
+    tiny_timer_t timer;
 
-    if (command == NULL || command->handle == NULL || command->response == NULL ||\
-        (command->request_size > 0 && command->request == NULL)) {
-        log_error("at command param is null.\r\n");
-        return -1;
-    }
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(command->handle);
+    log_assert_null_ptr(command->response);
+
+    log_assert_bool_false(!(command->request_size > 0 && command->request == NULL));
+
     log_debug("at request:%s\r\n",command->request);
-    /*清除上次结果*/
-    xuart_clear(command->handle);
-    if (command->request_size > 0) {
-        /*写入输出*/
-        write = xuart_write(command->handle,(uint8_t *)command->request,command->request_size);
-        if (write != command->request_size) {
-            log_error("at commad write size error.expect:%d write:%d.\r\n",command->request_size,write);
+
+    response_size = 0;
+    tiny_timer_init(&timer,0,command->timeout);
+
+    /*发送请求*/
+    rc = at_send_frame_data(command->handle,command->request,command->request_size,tiny_timer_value(&timer));
+    if (rc != command->request_size) {
+        log_error("at commad write size error.expect:%d write:%d.\r\n",command->request_size,rc);
+    }
+
+    /*等待回应*/
+    while (complete == 0) {
+        frame_size = at_wait_frame_data(command->handle,command->response + response_size,command->response_limit - response_size,tiny_timer_value(&timer));
+        if (frame_size < 0) {
             return -1;
         }
-    }
-    /*等待数据*/
-    select_size = xuart_select(command->handle,command->timeout);
-    if (select_size == 0) {
-        log_error("at command:%s wait timeout.\r\n",command->request != NULL ? command->request : "");
-        return -1;
-    }
-    /*轮询等待接收完毕*/
-    while (complete == 0) {  
-        /*判断回应的数据是否超过限制*/
-        if (read_total + select_size >= command->response_limit) {
-            log_error("at response size:%d too large than limit:%d.\r\n",read_total + select_size,command->response_limit);
+        /*等待超时*/
+        if (frame_size == 0) {
+            log_error("at command:%s wait timeout.\r\n",command->request != NULL ? command->request : "");
             return -1;
         }
-        /*读取数据*/
-        read = xuart_read(command->handle,(uint8_t *)command->response + read_total,select_size);
-        read_total += read; 
-        /*再次等待数据*/
-        select_size = xuart_select(command->handle,AT_COMMAND_FRAME_TIMEOUT); 
-        /*没有数据了*/
-        if (select_size == 0) {
-            command->response_size = read_total;
-            command->response[read_total] = 0;/*补全为字符串格式*/
-            complete = 1;
-        }          
-    }
+        /*解析这帧数据*/
+        /*如果没有开始解析*/
+        if (response_size + frame_size >= command->parse_offset) {
+            if (parse_start_offset == 0) {
+                parse_start_offset = command->parse_offset;
+            } else {
+                parse_start_offset = response_size;
+            }
+            log_debug("at response frame:%s\r\n",command->response + parse_start_offset);
 
-    log_debug("at response:%s.\r\n",command->response);
-    return 0;   
-}
-
-/**
-* @brief AT找出回应的一行字符串
-* @details
-* @param response AT指令的回应
-* @param line_separator 行的分隔符
-* @param line 找到的每个行的指针
-* @param line_limit 允许找出的行的最大的数量
-* @return 成功找到的行数量
-* @attention
-* @note
-*/
-int at_command_seek_line(char *response,char *line_separator,char **line,uint8_t line_limit)
-{
-    uint8_t cnt = 0;
-    char *token;
-
-    log_assert_null_ptr(response);
-    log_assert_null_ptr(line_separator);
-    log_assert_null_ptr(line);
-
-    /*查找回应的行*/
-    token = strtok(response,line_separator);
-    
-    while (token && line_limit --) {
-        *line ++ = token;
-        cnt ++;
-        token = strtok(NULL,line_separator);
-    }
-
-    return cnt;
-}
-  
-/**
-* @brief AT找出回应的一行字符串里多个值
-* @details
-* @param line AT指令回应的一行字符串
-* @param prefix 值前缀符
-* @param separator 值的分隔符
-* @param value 每个值的指针
-* @param value_limit 值的最大的数量
-* @return 执行是否成功
-* @retval >= 0 成功找到的值数量
-* @retval -1 失败
-* @attention
-* @note
-*/
-int at_command_seek_value(char *line,char *value_prefix,char *value_separator,char **value,uint8_t value_limit)
-{
-    char *token,*rsp_prefix,*value_start;
-
-    log_assert_null_ptr(line);
-    log_assert_null_ptr(value_prefix);
-    log_assert_null_ptr(value_separator);
-    log_assert_null_ptr(value);
-
-    if (value_prefix) {
-        /*查找前缀符号*/
-        rsp_prefix = strstr(line,value_prefix);
-        if (rsp_prefix == NULL) {
-            log_error("回应值的前缀不匹配.\r\n")
-            return -1;
+            response_size += frame_size;
+            rc = at_command_parse_frame(command,command->response + parse_start_offset,&code);
+            /*在这一帧中解析成功*/
+            if (rc == 0) {
+                command->response_size = response_size;
+                complete = 1;
+            }
         }
-        value_start = line + strlen(value_prefix);
-    } else {
-        value_start = line;
     }
 
-    /*查找回应的行*/
-    token = strtok(value_start,value_separator);
-    while (token && value_limit --) {
-        *value ++ = token;
-        token = strtok(NULL,value_separator);
-    }
-    if (token || value_limit) {
-        log_error("回应值数量 != %d.\r\n",value_limit);
-        return -1;
-    }
-
-    return 0;
+    log_debug("at command parse success.code:%d\r\n",code);
+    return code;
 }

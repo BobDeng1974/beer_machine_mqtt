@@ -20,6 +20,7 @@ void net_task(void const *argument);
 #define  NET_TASK_M6312_DETECT_TRANSPORT_MODE   (1  << 7)
 #define  NET_TASK_M6312_DETECT_RECV_CACHE_MODE  (1  << 8)
 #define  NET_TASK_M6312_SEND_MESSAGE            (1  << 9)
+#define  NET_TASK_M6312_GET_SIM_OPERATOR        (1 << 10)
 
-#define  NET_TASK_ALL_SIGNALS                   ((1 << 10) - 1)
+#define  NET_TASK_ALL_SIGNALS                   ((1 << 11) - 1)
 #endif

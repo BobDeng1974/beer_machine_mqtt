@@ -97,7 +97,7 @@ static void mqtt_client_thread(void* pvParameters)
     NetworkInit(&network);
     MQTTClientInit(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
 
-    char* address ="iot.eclipse.org";// "mqtt.mymlsoft.com";
+    char* address = "mqtt.mymlsoft.com";
 
     if ((rc = NetworkConnect(&network, address, 1883)) != 0) {
         log_error("Return code from network connect is %d\r\n", rc);
@@ -126,11 +126,11 @@ static void mqtt_client_thread(void* pvParameters)
         log_debug("MQTT Connected\r\n");
     }
 
-    if ((rc = MQTTSubscribe(&client, "ESP8266/sample/sub", QOS2, messageArrived)) != 0) {
+    if ((rc = MQTTSubscribe(&client, "/sample/sub", QOS2, messageArrived)) != 0) {
         log_error("Return code from MQTT subscribe is %d\r\n", rc);
         return;
     } else {
-        log_debug("MQTT subscribe to topic \"ESP8266/sample/sub\"\r\n");
+        log_debug("MQTT subscribe to topic \"/sample/sub\"\r\n");
     }
 
     while (++count) {
@@ -143,10 +143,10 @@ static void mqtt_client_thread(void* pvParameters)
         sprintf(payload, "message number %d\r\n", count);
         message.payloadlen = strlen(payload);
 
-        if ((rc = MQTTPublish(&client, "ESP8266/sample/pub", &message)) != 0) {
+        if ((rc = MQTTPublish(&client, "/sample/pub", &message)) != 0) {
             log_error("Return code from MQTT publish is %d\r\n", rc);
         } else {
-            log_debug("MQTT publish topic \"ESP8266/sample/pub\", message number is %d\r\n", count);
+            log_debug("MQTT publish topic \"/sample/pub\", message number is %d\r\n", count);
         }
 
         vTaskDelay(1000 / portTICK_RATE_MS);  //send every 1 seconds
@@ -177,15 +177,16 @@ void net_task(void const * argument)
     m6312_connection_mode_t connection_mode;
     m6312_recv_cache_mode_t recv_cache_mode;
     m6312_transport_mode_t transport_mode;
-
+    m6312_sim_operator_t sim_operator;
     char sim_id[20];
 
     m6312_uart_init();
     net_task_m6312_timer_init();
     osSignalSet(net_task_hdl,NET_TASK_M6312_REBOOT);
-
+    log_debug("net task run...\r\n");
     while (1)
     {
+        osDelay(1000);
         os_event = osSignalWait(NET_TASK_ALL_SIGNALS,osWaitForever);
         if (os_event.status == osEventSignal) {
             /*m6312重启*/
@@ -210,13 +211,22 @@ void net_task(void const * argument)
             rc = m6312_get_sim_card_status(&sim_card_status);
             /*sim卡存在，检测是否激活*/
             if (rc == 0 && sim_card_status == M6312_SIM_CARD_EXIST) {
-                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_APN);
+                osSignalSet(net_task_hdl,NET_TASK_M6312_GET_SIM_OPERATOR);
             } else {
                 /*再次查询*/
                 osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_SIM_CARD);
             }
         }
-
+        /*m6312获取运营商*/
+        if (os_event.value.signals & NET_TASK_M6312_GET_SIM_OPERATOR) {
+            rc = m6312_get_operator(&sim_operator); 
+            if (rc == 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_APN); 
+            } else {
+                /*再次查询*/
+                osSignalSet(net_task_hdl,NET_TASK_M6312_GET_SIM_OPERATOR);
+            }
+        }
         /*m6312设置APN*/
         if (os_event.value.signals & NET_TASK_M6312_SET_GPRS_APN) {
             rc = m6312_set_gprs_apn("cmnet"); 
@@ -348,8 +358,8 @@ detect_recv_cache_mode_exit:
             m6312_close(0);
             net_task_m6312_timer_start(2000);
         }
-                    
 
+                   
 
     }
 }

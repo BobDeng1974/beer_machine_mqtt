@@ -25,7 +25,7 @@ EventGroupHandle_t tasks_sync_evt_group_hdl;
 */
 int tasks_init(void)
 {
-    osThreadDef(net_task, net_task, osPriorityBelowNormal, 0, 400);
+    osThreadDef(net_task, net_task, osPriorityBelowNormal, 0, 500);
     net_task_hdl = osThreadCreate(osThread(net_task), NULL);
 
     return 0;

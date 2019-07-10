@@ -157,7 +157,16 @@ int m6312_get_sim_card_status(m6312_sim_card_status_t *status);
 */
 int m6312_get_sim_card_id(char *sim_id);
 
-
+/**
+* @brief M6312模块获取运营商
+* @param *sim_operator  运营商指针 @see m6312_sim_operator_t
+* @return 获取是否成功
+* @retval 0 获取成功
+* @return -1 获取失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_operator(m6312_sim_operator_t *sim_operator);
 /**
 * @brief M6312模块获取GPRS附着状态
 * @param status gprs状态指针
