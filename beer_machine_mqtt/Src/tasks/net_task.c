@@ -186,12 +186,12 @@ void net_task(void const * argument)
     log_debug("net task run...\r\n");
     while (1)
     {
-        osDelay(1000);
+        osDelay(100);
         os_event = osSignalWait(NET_TASK_ALL_SIGNALS,osWaitForever);
         if (os_event.status == osEventSignal) {
             /*m6312重启*/
             if (os_event.value.signals & NET_TASK_M6312_REBOOT) {
-                m6312_pwr_off();
+                //m6312_pwr_off();
                 m6312_pwr_on();
                 osSignalSet(net_task_hdl,NET_TASK_M6312_TURN_OFF_ECHO);
             }

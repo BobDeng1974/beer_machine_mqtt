@@ -15,7 +15,7 @@ AT_COMMAND_BEGIN
 #define  VALUE_PREFIX_SEPARATOR          " "
 #define  VALUE_SEPARATOR                 ","
 
-#define  AT_COMMAND_FRAME_TIMEOUT        10
+#define  AT_COMMAND_FRAME_TIMEOUT        5
 
 #define  AT_CMD_SUCCESS_CNT_MAX          4 
 #define  AT_CMD_FAIL_CNT_MAX             4 

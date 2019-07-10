@@ -38,8 +38,8 @@ static uint8_t send_buffer[M6312_SEND_BUFFER_SIZE];/**< m6312串口发送缓存*
 #define  M6312_PWR_ON_TIMEOUT                              5000  /**< m6312模块开机超时时间*/
 #define  M6312_PWR_OFF_TIMEOUT                             15000 /**< m6312模块关机超时时间*/
 
-#define  M6312_RESPONSE_TIMEOUT                            20000 /**< m6312模块回应超时时间*/
-#define  M6312_RESPONSE_BUFFER_SIZE                        100   /**< m6312模块回应缓存大小*/
+#define  M6312_RESPONSE_TIMEOUT                            10000 /**< m6312模块回应超时时间*/
+#define  M6312_RESPONSE_BUFFER_SIZE                        150   /**< m6312模块回应缓存大小*/
 #define  M6312_REQUEST_BUFFER_SIZE                         100   /**< m6312模块请求缓存大小*/
 #define  M6312_RESPONSE_LINE_CNT_MAX                       10    /**< m6312模块回应行的最大数量*/
 #define  M6312_RESPONSE_VALUE_CNT_MAX_PER_LINE             10    /**< m6312模块回应值每行最大数量*/
@@ -785,7 +785,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
     char response[M6312_RESPONSE_BUFFER_SIZE];
     char request[M6312_REQUEST_BUFFER_SIZE];
     at_command_t command;
-    osDelay(500);
+
     /*第一步 启动发送*/
     /*m6312构建请求*/
     snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPSEND=%d,%d\r\n",socket_id,size);
@@ -805,7 +805,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
         /*判断执行结果*/
         if (rc == 0) {
             log_debug("m6312发送成功.\r\n");
-            return 0;
+            return size;
         }
     }
 
@@ -828,7 +828,8 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
 {
     int rc;
     uint8_t success = 0;
-    uint16_t recv_size;
+    uint16_t buffer_size;
+    uint16_t read_size;
     char response[M6312_RESPONSE_BUFFER_SIZE];
     char request[M6312_REQUEST_BUFFER_SIZE] = { 0 };
     at_command_t command;
@@ -845,10 +846,10 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt >= 15) {
         /*找到对应的id*/
-        for (uint8_t i = 0;i < command.value_parse.cnt;i ++) {
+        for (uint8_t i = 0;i < command.value_parse.cnt / 3;i ++) {
             if (socket_id == atoi(command.value_parse.value[i * 3])) {
-                recv_size = atoi(command.value_parse.value[i * 3 + 2]);
-                log_debug("m6312找到接收id:%d size:%d\r\n",socket_id,recv_size);
+                buffer_size = atoi(command.value_parse.value[i * 3 + 2]);
+                log_debug("m6312找到接收id:%d size:%d\r\n",socket_id,buffer_size);
                 success = 1;
                 break;
             }
@@ -856,20 +857,24 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
     }
     /*第二步读取数据*/
     if (success == 1) {
+        if(buffer_size == 0) {
+            return 0;/*没有数据直接返回*/
+        }
+        read_size = buffer_size > size ? size : buffer_size;
         /*构建请求*/
-        snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+CMRD=%d,%d\r\n",socket_id,recv_size);
+        snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+CMRD=%d,%d\r\n",socket_id,read_size);
         at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
         at_command_add_success_code(&command,0,1,"OK");
         at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-        at_command_set_response_data_size(&command,recv_size);
+        at_command_set_response_data_size(&command,read_size);
         rc = at_command_execute(&command);
         /*判断执行结果*/
         if (rc == 0) {
-            log_debug("m6312读%dbytes数据成功\r\n",recv_size);
-            return 0;
+            log_debug("m6312读%dbytes数据成功\r\n",read_size);
+            return read_size;
         }
     }
 
-    log_error("m6312读%dbytes数据失败\r\n",recv_size);
+    log_error("m6312读%dbytes数据失败\r\n",read_size);
     return -1;
 }

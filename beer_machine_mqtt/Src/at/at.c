@@ -237,7 +237,7 @@ static int at_command_parse_frame(at_command_t *command,char *frame,int *code)
         /*如果没解析出code，尝试解析回应值*/
         at_command_parse_value(command,line);
         /*循环*/
-        start = next + strlen(CRLF);
+        start = next;
     }
 
     return -1;
@@ -326,7 +326,7 @@ int at_command_execute(at_command_t *command)
     int rc,code = -1;
     uint8_t complete = 0;
     int frame_size,response_size;
-    uint32_t parse_start_offset = 0;
+    int parse_start_offset = -1;
     tiny_timer_t timer;
 
     log_assert_null_ptr(command);
@@ -360,18 +360,17 @@ int at_command_execute(at_command_t *command)
         /*解析这帧数据*/
         /*如果没有开始解析*/
         if (response_size + frame_size >= command->parse_offset) {
-            if (parse_start_offset == 0) {
+            if (parse_start_offset == -1) {
                 parse_start_offset = command->parse_offset;
             } else {
                 parse_start_offset = response_size;
             }
             log_debug("at response frame:%s\r\n",command->response + parse_start_offset);
-
             response_size += frame_size;
+            command->response_size = response_size;
             rc = at_command_parse_frame(command,command->response + parse_start_offset,&code);
             /*在这一帧中解析成功*/
             if (rc == 0) {
-                command->response_size = response_size;
                 complete = 1;
             }
         }
