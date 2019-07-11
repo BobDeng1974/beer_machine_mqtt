@@ -86,7 +86,14 @@ void NetworkInit(Network*);
  * @return connect status
  */
 int NetworkConnect(Network* n, char* addr, int port);
-
+/**
+ * @brief disconnect with mqtt broker
+ *
+ * @param n           - mqtt network struct
+ *
+ * @return connect status
+ */
+int NetworkDisconnect(Network* n);
 #ifdef CONFIG_SSL_USING_MBEDTLS
 typedef struct ssl_ca_crt_key {
     unsigned char* cacrt;

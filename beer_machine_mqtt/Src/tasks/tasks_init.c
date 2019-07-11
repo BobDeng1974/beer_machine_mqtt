@@ -20,11 +20,11 @@ int tasks_init(void)
     mqtt_task_msg_hdl = xQueueCreate(2,sizeof(mqtt_task_msg_t));
     log_assert_null_ptr(mqtt_task_msg_hdl);
 
-    osThreadDef(mqtt_task, mqtt_task, osPriorityNormal, 0, 8000);
+    osThreadDef(mqtt_task, mqtt_task, osPriorityNormal,0,800);
     mqtt_task_hdl = osThreadCreate(osThread(mqtt_task), NULL);
     log_assert_null_ptr(mqtt_task_hdl);
 
-    osThreadDef(net_task, net_task, osPriorityBelowNormal, 0, 600);
+    osThreadDef(net_task, net_task, osPriorityNormal,0,400);
     net_task_hdl = osThreadCreate(osThread(net_task), NULL);
     log_assert_null_ptr(net_task_hdl);
 

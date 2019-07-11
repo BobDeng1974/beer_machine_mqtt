@@ -17,7 +17,7 @@
 
 #include <string.h>
 #include "printf.h"
-#include <m6312.h>
+#include "m6312.h"
 #include "MQTTFreeRTOS.h"
 
 int ThreadStart(Thread* thread, void (*fn)(void*), void* arg)
@@ -157,6 +157,13 @@ int NetworkConnect(Network* n, char* addr, int port)
     rc = m6312_connect(n->my_socket,addr,port_str,M6312_CONNECT_TCP);
     return rc;
 }
+int NetworkDisconnect(Network* n)
+{
+    int rc;
+    rc = m6312_close(n->my_socket);
+    return rc;
+}
+
 
 #ifdef CONFIG_SSL_USING_MBEDTLS
 static int esp_ssl_read(Network* n, unsigned char* buffer, unsigned int len, unsigned int timeout_ms)

@@ -37,16 +37,18 @@ osThreadId  mqtt_task_hdl;
 
 #define  MQTT_SEND_BUFFER_SIZE    100
 #define  MQTT_RECV_BUFFER_SIZE    100
-#define  MQTT_TIMEOUT             20000
-#define  MQTT_INTERVAL            20000
+#define  MQTT_TIMEOUT             20000/**< 单位豪秒*/
+#define  MQTT_INTERVAL            30/**< 单位秒，如果这段时间内有数据传输，则顺延*/
 
+/** mqtt接收和发送缓冲*/
 uint8_t send_buffer[MQTT_SEND_BUFFER_SIZE], recv_buffer[MQTT_RECV_BUFFER_SIZE];
-
+/** mqtt上下文*/
 static MQTTClient client;
+/** mqtt网络接口*/
 static Network net_work;
 
 
- /** 描述*/
+/** 描述*/
 osTimerId mqtt_timer_id;
 
 /**
@@ -114,8 +116,9 @@ static void mqtt_task_timer_callback(void const *argument)
 
 static void message_handle(MessageData* data)
 {
-    log_info("Message arrived: %s\r\n", (char*)data->message->payload);
+  log_info("topic:%s message ==>> arrived: %s\r\n",(char *)data->topicName,(char*)data->message->payload);
 }
+
 /**
 * @brief
 * @details
@@ -136,6 +139,7 @@ static int mqtt_task_client_init(MQTTClient *client,Network *net_work,uint8_t so
 
     if ((rc = NetworkConnect(net_work,HOST_NAME,HOST_PORT)) != 0) {
         log_error("mqtt network connect fail:code %d.\r\n", rc);
+        NetworkDisconnect(net_work);
         return -1;
     }
 
@@ -147,6 +151,7 @@ static int mqtt_task_client_init(MQTTClient *client,Network *net_work,uint8_t so
 
     if ((rc = MQTTConnect(client,&connectData)) != 0) {
         log_error("mqtt send connect data fail:code %d.\r\n", rc);
+        NetworkDisconnect(net_work);
         return -1;
     } 
 
@@ -244,13 +249,13 @@ void mqtt_task(void const * argument)
 {
     int rc;
     mqtt_task_msg_t mqtt_msg; 
-
+    mqtt_task_msg_t mqtt_msg_recv; 
     while(1)
     {
     osDelay(1000);
-    if (xQueueReceive(mqtt_task_msg_hdl, &mqtt_msg,0xFFFFFFFF) == pdTRUE) {
+    if (xQueueReceive(mqtt_task_msg_hdl, &mqtt_msg_recv,0xFFFFFFFF) == pdTRUE) {
         /*处理消息*/
-        if (mqtt_msg.head.id == MQTT_TASK_NET_INIT) {
+        if (mqtt_msg_recv.head.id == MQTT_TASK_NET_INIT) {
             rc = mqtt_task_client_init(&client,&net_work,HOST_SOCKET,send_buffer,MQTT_SEND_BUFFER_SIZE,recv_buffer,MQTT_SEND_BUFFER_SIZE,MQTT_INTERVAL,MQTT_TIMEOUT);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_NET_INIT;
@@ -262,8 +267,8 @@ void mqtt_task(void const * argument)
             }
         }
         /*处理消息*/
-        if (mqtt_msg.head.id == MQTT_TASK_SUBSCRIBE) {
-            rc = mqtt_task_subscribe(&client,DEVICE_LOG_TOPIC,1,message_handle);
+        if (mqtt_msg_recv.head.id == MQTT_TASK_SUBSCRIBE) {
+            rc = mqtt_task_subscribe(&client,DEVICE_LOG_TOPIC,0,message_handle);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_SUBSCRIBE;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);    
@@ -274,8 +279,8 @@ void mqtt_task(void const * argument)
         }
 
         /*处理消息*/
-        if (mqtt_msg.head.id == MQTT_TASK_REPORT_LOG) {
-            rc = mqtt_task_publish(&client,DEVICE_LOG_TOPIC,1,DEVICE_LOG_CONTENT,strlen(DEVICE_LOG_CONTENT));
+        if (mqtt_msg_recv.head.id == MQTT_TASK_REPORT_LOG) {
+            rc = mqtt_task_publish(&client,DEVICE_LOG_TOPIC,0,DEVICE_LOG_CONTENT,strlen(DEVICE_LOG_CONTENT));
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_REPORT_LOG;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);   

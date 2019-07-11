@@ -731,8 +731,6 @@ int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type
     }
 
     log_error("m6312 %s连接失败.\r\n",connect_type);
-    /*主动关闭资源*/
-    m6312_close(socket);
     return -1;
 }
 
@@ -812,8 +810,6 @@ int m6312_send(uint8_t socket,uint8_t *buffer,uint16_t size)
     }
 
     log_error("m6312发送失败\r\n");
-    /*主动关闭资源*/
-    m6312_close(socket);
     return -1;
 }
 
@@ -882,7 +878,5 @@ int m6312_recv(uint8_t socket,uint8_t *recv_buffer,uint16_t size)
     }
 
     log_error("m6312读%dbytes数据失败\r\n",size);
-    /*主动关闭资源*/
-    m6312_close(socket);
     return -1;
 }
