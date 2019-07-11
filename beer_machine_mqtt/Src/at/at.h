@@ -10,32 +10,37 @@
 #endif
  
 AT_COMMAND_BEGIN
-
+/** 是否使用RTOS*/
+#define  AT_COMMAND_RTOS                 1
+/** 特定字符串*/
 #define  CRLF                            "\r\n"
 #define  VALUE_PREFIX_SEPARATOR          " "
 #define  VALUE_SEPARATOR                 ","
-
+/** 每一帧的超时时间*/
 #define  AT_COMMAND_FRAME_TIMEOUT        5
-
+/** 状态码域成功和失败字符串数量限制*/
 #define  AT_CMD_SUCCESS_CNT_MAX          4 
 #define  AT_CMD_FAIL_CNT_MAX             4 
+/** 值域值的数量限制*/
 #define  AT_VALUE_CNT_MAX                20
 
+ /** at指令回应的状态码域解析*/
 typedef struct
 {
-    char *success[AT_CMD_SUCCESS_CNT_MAX];
-    uint8_t success_cnt;
-    int success_code;
-    char *fail[AT_CMD_FAIL_CNT_MAX];
-    uint8_t fail_cnt;
-    int fail_code;
+    char *success[AT_CMD_SUCCESS_CNT_MAX];/**< 回应代表成功的状态码字符串指针*/
+    uint8_t success_cnt;/**< 回应代表成功的状态码字符串数量*/
+    int success_code;/**< 回应代表成功的状态码返回值*/
+    char *fail[AT_CMD_FAIL_CNT_MAX];/**< 回应代表失败的状态码字符串指针*/
+    uint8_t fail_cnt;/**< 回应代表失败的状态码字符串数量*/
+    int fail_code;/**< 回应代表失败的状态码返回值*/
 }at_code_parse_t;
 
+ /** at指令回应的值域解析*/
 typedef struct
 {
-    char *prefix;
-    char *value[AT_VALUE_CNT_MAX];
-    uint8_t cnt;
+    char *prefix; /**< 值域的前缀*/
+    char *value[AT_VALUE_CNT_MAX];/**< 值域的值指针*/
+    uint8_t cnt;/**< 值域的值的数量*/
 }at_value_parse_t;
 
  /** @brief AT指令结构*/
@@ -48,8 +53,8 @@ typedef struct
     uint16_t response_size;/**< 回应的数据量*/
     uint16_t response_limit;/**< 回应的数据最大值*/
     uint16_t timeout;/**< 超时时间*/
-    at_code_parse_t code_parse;
-    at_value_parse_t value_parse;
+    at_code_parse_t code_parse;/**< 状态码域解析*/
+    at_value_parse_t value_parse;/**< 值域解析*/
     uint16_t parse_offset;/** <解析开始的偏移地址，同时有数据和状态的时候用到*/
 }at_command_t;
 

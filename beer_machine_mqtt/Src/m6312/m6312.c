@@ -39,8 +39,8 @@ static uint8_t send_buffer[M6312_SEND_BUFFER_SIZE];/**< m6312串口发送缓存*
 #define  M6312_PWR_OFF_TIMEOUT                             15000 /**< m6312模块关机超时时间*/
 
 #define  M6312_RESPONSE_TIMEOUT                            10000 /**< m6312模块回应超时时间*/
-#define  M6312_RESPONSE_BUFFER_SIZE                        150   /**< m6312模块回应缓存大小*/
-#define  M6312_REQUEST_BUFFER_SIZE                         100   /**< m6312模块请求缓存大小*/
+#define  M6312_RESPONSE_BUFFER_SIZE                        200   /**< m6312模块回应缓存大小*/
+#define  M6312_REQUEST_BUFFER_SIZE                         200   /**< m6312模块请求缓存大小*/
 #define  M6312_RESPONSE_LINE_CNT_MAX                       10    /**< m6312模块回应行的最大数量*/
 #define  M6312_RESPONSE_VALUE_CNT_MAX_PER_LINE             10    /**< m6312模块回应值每行最大数量*/
 /**
@@ -695,7 +695,7 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode)
 }
 /**
 * @brief M6312模块建立TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @param host 要建立连接的主机名
 * @param type 建立连接的类型
 * @return 建立连接是否成功
@@ -704,7 +704,7 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode)
 * @attention 无
 * @note 无
 */
-int m6312_connect(uint8_t index,char *host,char *port,m6312_connect_type_t type)
+int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type)
 {
     int rc;
     char *connect_type;
@@ -718,7 +718,7 @@ int m6312_connect(uint8_t index,char *host,char *port,m6312_connect_type_t type)
         connect_type = "UDP";
     }
     /*构建请求*/
-    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPSTART=%d,%s,%s,%s\r\n",index,connect_type,host,port);
+    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPSTART=%d,%s,%s,%s\r\n",socket,connect_type,host,port);
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,3,"CONNECT OK","ALREADY CONNECT","BIND OK");
     at_command_add_fail_code(&command,-1,4,"+CME ERROR","ERROR","CONNECT FAIL","BIND FAIL");
@@ -731,19 +731,21 @@ int m6312_connect(uint8_t index,char *host,char *port,m6312_connect_type_t type)
     }
 
     log_error("m6312 %s连接失败.\r\n",connect_type);
+    /*主动关闭资源*/
+    m6312_close(socket);
     return -1;
 }
 
 /**
 * @brief M6312模块关闭TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @return 关闭连接是否成功
 * @retval 0 关闭连接成功
 * @retval -1 关闭连接失败
 * @attention 无
 * @note 无
 */
-int m6312_close(uint8_t index)
+int m6312_close(uint8_t socket)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];
@@ -751,7 +753,7 @@ int m6312_close(uint8_t index)
 
     at_command_t command;
     /*m6312构建请求*/
-    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPCLOSE=%d\r\n",index);
+    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPCLOSE=%d\r\n",socket);
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
@@ -759,17 +761,17 @@ int m6312_close(uint8_t index)
     /*判断执行结果*/
     if (rc == 0) {
         /*对比回应值*/
-        log_debug("m6312 关闭连接:%d成功.\r\n",index);
+        log_debug("m6312 关闭连接:%d成功.\r\n",socket);
         return 0;
     }
 
-    log_error("m6312 关闭连接%d失败.\r\n",index);
+    log_error("m6312 关闭连接%d失败.\r\n",socket);
     return -1;
 }
 
 /**
 * @brief M6312模块发送数据
-* @param socket_id 建立连接的通道号
+* @param socket 建立连接的通道号
 * @param buffer 发送的数据地址
 * @param size 发送的数据量
 * @param wait_response 是否需要等待回应 0不等待 >0等待
@@ -779,7 +781,7 @@ int m6312_close(uint8_t index)
 * @attention 无
 * @note 无
 */
-int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
+int m6312_send(uint8_t socket,uint8_t *buffer,uint16_t size)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];
@@ -788,7 +790,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
 
     /*第一步 启动发送*/
     /*m6312构建请求*/
-    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPSEND=%d,%d\r\n",socket_id,size);
+    snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+IPSEND=%d,%d\r\n",socket,size);
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"> ");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
@@ -810,12 +812,14 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
     }
 
     log_error("m6312发送失败\r\n");
+    /*主动关闭资源*/
+    m6312_close(socket);
     return -1;
 }
 
 /**
 * @brief M6312模块接收数据
-* @param socket_id 建立连接的通道号
+* @param socket 建立连接的通道号
 * @param buffer 接收的数据地址
 * @param size 接收的数据量
 * @return 实际接收数据量
@@ -824,7 +828,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size)
 * @attention 无
 * @note 无
 */
-int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
+int m6312_recv(uint8_t socket,uint8_t *recv_buffer,uint16_t size)
 {
     int rc;
     uint8_t success = 0;
@@ -847,9 +851,9 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
     if (rc == 0 && command.value_parse.cnt >= 15) {
         /*找到对应的id*/
         for (uint8_t i = 0;i < command.value_parse.cnt / 3;i ++) {
-            if (socket_id == atoi(command.value_parse.value[i * 3])) {
+            if (socket == atoi(command.value_parse.value[i * 3])) {
                 buffer_size = atoi(command.value_parse.value[i * 3 + 2]);
-                log_debug("m6312找到接收id:%d size:%d\r\n",socket_id,buffer_size);
+                log_debug("m6312找到接收id:%d size:%d\r\n",socket,buffer_size);
                 success = 1;
                 break;
             }
@@ -862,7 +866,7 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
         }
         read_size = buffer_size > size ? size : buffer_size;
         /*构建请求*/
-        snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+CMRD=%d,%d\r\n",socket_id,read_size);
+        snprintf(request,M6312_REQUEST_BUFFER_SIZE,"AT+CMRD=%d,%d\r\n",socket,read_size);
         at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
         at_command_add_success_code(&command,0,1,"OK");
         at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
@@ -870,11 +874,15 @@ int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size)
         rc = at_command_execute(&command);
         /*判断执行结果*/
         if (rc == 0) {
+            /*复制数据到接收缓存*/
+            memcpy(recv_buffer,command.response,read_size);
             log_debug("m6312读%dbytes数据成功\r\n",read_size);
             return read_size;
         }
     }
 
-    log_error("m6312读%dbytes数据失败\r\n",read_size);
+    log_error("m6312读%dbytes数据失败\r\n",size);
+    /*主动关闭资源*/
+    m6312_close(socket);
     return -1;
 }

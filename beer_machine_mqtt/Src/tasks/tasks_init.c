@@ -1,17 +1,9 @@
 #include "cmsis_os.h"
-#include "comm_utils.h"
 #include "tasks_init.h"
-#include "alarm_task.h"
-#include "compressor_task.h"
-#include "display_task.h"
-#include "pressure_task.h"
+#include "mqtt_task.h"
 #include "net_task.h"
-#include "temperature_task.h"
-#include "report_task.h"
 #include "log.h"
 
-
-EventGroupHandle_t tasks_sync_evt_group_hdl;
 
 /**
 * @brief 任务初始化
@@ -25,8 +17,17 @@ EventGroupHandle_t tasks_sync_evt_group_hdl;
 */
 int tasks_init(void)
 {
-    osThreadDef(net_task, net_task, osPriorityBelowNormal, 0, 500);
+    mqtt_task_msg_hdl = xQueueCreate(2,sizeof(mqtt_task_msg_t));
+    log_assert_null_ptr(mqtt_task_msg_hdl);
+
+    osThreadDef(mqtt_task, mqtt_task, osPriorityNormal, 0, 8000);
+    mqtt_task_hdl = osThreadCreate(osThread(mqtt_task), NULL);
+    log_assert_null_ptr(mqtt_task_hdl);
+
+    osThreadDef(net_task, net_task, osPriorityBelowNormal, 0, 600);
     net_task_hdl = osThreadCreate(osThread(net_task), NULL);
+    log_assert_null_ptr(net_task_hdl);
+
 
     return 0;
 }

@@ -70,7 +70,10 @@ void TimerCountdown(Timer* timer, unsigned int timeout)
 
 int TimerLeftMS(Timer* timer)
 {
-    xTaskCheckForTimeOut(&timer->xTimeOut, &timer->xTicksToWait); /* updates xTicksToWait to the number left */
+    /*如果超时,返回0*/
+    if (pdTRUE == xTaskCheckForTimeOut(&timer->xTimeOut, &timer->xTicksToWait)) {/* updates xTicksToWait to the number left */
+        return 0;
+    }
     return timer->xTicksToWait * portTICK_PERIOD_MS;
 }
 
@@ -98,7 +101,7 @@ static int esp_read(Network* n, unsigned char* buffer, unsigned int len, unsigne
     TimerCountdownMS(&timer,timeout_ms);
 
     while (TimerLeftMS(&timer) > 0 && read_total < len) {
-        read = m6312_recv(n->my_socket,buffer,len - read_total);
+        read = m6312_recv(n->my_socket,buffer + read_total,len - read_total);
         if (read < 0) {
             return -1;
         }
@@ -119,7 +122,7 @@ static int esp_write(Network* n, unsigned char* buffer, unsigned int len, unsign
     TimerCountdownMS(&timer,timeout_ms);
 
     while (TimerLeftMS(&timer) > 0 && write_total < len) {
-        write = m6312_send(n->my_socket,buffer,len - write_total);
+        write = m6312_send(n->my_socket,buffer + write_total,len - write_total);
         if (write < 0) {
             return -1;
         }

@@ -16,6 +16,7 @@
 ****************************************************************************************/
 #include "string.h"
 #include "stdarg.h"
+#include "cmsis_os.h"
 #include "debug_assert.h"
 #include "xuart.h"
 #include "tiny_timer.h"
@@ -311,10 +312,56 @@ static uint32_t at_send_frame_data(xuart_handle_t *handle,char *buffer,uint16_t 
     return write - remain_size;
 }
 
+ /**< at指令的信号量*/
+typedef struct
+{
+    uint8_t is_init;
+    osMutexId id;
+}at_command_mutex_t;
+static at_command_mutex_t at_command_mutex;
+
+/**
+* @brief at命令信号量初始化
+* @details
+* @param mutex 信号量指针
+* @return 无
+* @attention
+* @note
+*/
+void at_command_mutex_init(at_command_mutex_t* mutex)
+{
+    osMutexDef(at_command_mutex);
+    mutex->id = osMutexCreate(osMutex(at_command_mutex));
+    log_assert_null_ptr(mutex->id);
+}
+/**
+* @brief at命令信号量获取
+* @details
+* @param mutex 信号量指针
+* @return 获取结果
+* @attention
+* @note
+*/
+int at_command_mutex_lock(at_command_mutex_t* mutex)
+{
+    return osMutexWait(mutex->id, osWaitForever);
+}
+/**
+* @brief at命令信号量释放
+* @details
+* @param mutex 信号量指针
+* @return 释放结果
+* @attention
+* @note
+*/
+int at_command_mutex_unlock(at_command_mutex_t* mutex)
+{
+    return osMutexRelease(mutex->id);
+}
 
 
 /**
-* @brief AT指令执行
+* @brief AT指令执行线程安全
 * @details
 * @param command AT指令指针
 * @return 执行结果
@@ -340,22 +387,32 @@ int at_command_execute(at_command_t *command)
     response_size = 0;
     tiny_timer_init(&timer,0,command->timeout);
 
+#if  AT_COMMAND_RTOS > 0
+    if (at_command_mutex.is_init == 0) {
+        at_command_mutex_init(&at_command_mutex);
+        at_command_mutex.is_init = 1;
+    }
+    at_command_mutex_lock(&at_command_mutex);
+#endif
     /*发送请求*/
     rc = at_send_frame_data(command->handle,command->request,command->request_size,tiny_timer_value(&timer));
     if (rc != command->request_size) {
         log_error("at commad write size error.expect:%d write:%d.\r\n",command->request_size,rc);
+        goto exit;
     }
 
     /*等待回应*/
     while (complete == 0) {
         frame_size = at_wait_frame_data(command->handle,command->response + response_size,command->response_limit - response_size,tiny_timer_value(&timer));
         if (frame_size < 0) {
-            return -1;
+            rc = -1;
+            goto exit;
         }
         /*等待超时*/
         if (frame_size == 0) {
             log_error("at command:%s wait timeout.\r\n",command->request != NULL ? command->request : "");
-            return -1;
+            rc = -1;
+            goto exit;
         }
         /*解析这帧数据*/
         /*如果没有开始解析*/
@@ -372,10 +429,18 @@ int at_command_execute(at_command_t *command)
             /*在这一帧中解析成功*/
             if (rc == 0) {
                 complete = 1;
+                goto exit;
             }
         }
     }
 
-    log_debug("at command parse success.code:%d\r\n",code);
-    return code;
+exit:
+#if  AT_COMMAND_RTOS > 0
+    at_command_mutex_unlock(&at_command_mutex);
+#endif
+    if (rc == 0) {
+        log_debug("at command parse success.code:%d\r\n",code);
+        return code;
+    }
+    return -1;
 }

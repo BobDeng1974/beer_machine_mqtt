@@ -303,7 +303,7 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode);
 
 /**
 * @brief M6312模块建立TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @param host 要建立连接的主机名
 * @param type 建立连接的类型
 * @return 建立连接是否成功
@@ -312,18 +312,18 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode);
 * @attention 无
 * @note 无
 */
-int m6312_connect(uint8_t index,char *host,char *port,m6312_connect_type_t type);
+int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type);
 
 /**
 * @brief M6312模块关闭TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @return 关闭连接是否成功
 * @retval 0 关闭连接成功
 * @retval -1 关闭连接失败
 * @attention 无
 * @note 无
 */
-int m6312_close(uint8_t index);
+int m6312_close(uint8_t socket);
 
 /**
 * @brief M6312模块发送数据

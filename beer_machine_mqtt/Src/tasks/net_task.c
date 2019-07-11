@@ -1,10 +1,9 @@
-#include "FreeRTOS.h"
-#include "task.h"
 #include "cmsis_os.h"
-#include "net_task.h"
 #include "m6312.h"
 #include "printf.h"
 #include "tasks_init.h"
+#include "net_task.h"
+#include "mqtt_task.h"
 #include "MQTTClient.h"
 #include "log.h"
 
@@ -77,83 +76,6 @@ static void net_task_m6312_timer_callback(void const *argument)
 {
     osSignalSet(net_task_hdl,NET_TASK_M6312_SEND_MESSAGE);
 }
-
-static void messageArrived(MessageData* data)
-{
-    log_debug("Message arrived: %s\n", (char*)data->message->payload);
-}
-
-
-static void mqtt_client_thread(void* pvParameters)
-{
-    MQTTClient client;
-    Network network;
-    unsigned char sendbuf[80], readbuf[80] = {0};
-    int rc = 0, count = 0;
-    MQTTPacket_connectData connectData = MQTTPacket_connectData_initializer;
-
-    log_debug("mqtt client thread starts\r\n");
-
-    NetworkInit(&network);
-    MQTTClientInit(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
-
-    char* address = "mqtt.mymlsoft.com";
-
-    if ((rc = NetworkConnect(&network, address, 1883)) != 0) {
-        log_error("Return code from network connect is %d\r\n", rc);
-        return;
-    }
-
-#if defined(MQTT_TASK)
-
-    if ((rc = MQTTStartTask(&client)) != pdPASS) {
-        log_error("Return code from start tasks is %d\n", rc);
-    } else {
-        log_debug("Use MQTTStartTask\n");
-    }
-
-#endif
-
-    connectData.MQTTVersion = 3;
-    connectData.username.cstring = "a24a642b4d1d473b";
-    connectData.password.cstring = "pwd";
-    connectData.clientID.cstring = "D3A8002184DATET811260001";
-
-    if ((rc = MQTTConnect(&client, &connectData)) != 0) {
-        log_error("Return code from MQTT connect is %d\r\n", rc);
-        return;
-    } else {
-        log_debug("MQTT Connected\r\n");
-    }
-
-    if ((rc = MQTTSubscribe(&client, "/sample/sub", QOS2, messageArrived)) != 0) {
-        log_error("Return code from MQTT subscribe is %d\r\n", rc);
-        return;
-    } else {
-        log_debug("MQTT subscribe to topic \"/sample/sub\"\r\n");
-    }
-
-    while (++count) {
-        MQTTMessage message;
-        char payload[30];
-
-        message.qos = QOS2;
-        message.retained = 0;
-        message.payload = payload;
-        sprintf(payload, "message number %d\r\n", count);
-        message.payloadlen = strlen(payload);
-
-        if ((rc = MQTTPublish(&client, "/sample/pub", &message)) != 0) {
-            log_error("Return code from MQTT publish is %d\r\n", rc);
-        } else {
-            log_debug("MQTT publish topic \"/sample/pub\", message number is %d\r\n", count);
-        }
-
-        vTaskDelay(1000 / portTICK_RATE_MS);  //send every 1 seconds
-    }
-
-}
-
 /**
 * @brief
 * @details
@@ -354,9 +276,9 @@ detect_recv_cache_mode_exit:
 
         /*m6312发送数据*/
         if (os_event.value.signals & NET_TASK_M6312_SEND_MESSAGE) {
-            mqtt_client_thread(0);
-            m6312_close(0);
-            net_task_m6312_timer_start(2000);
+                mqtt_task_msg_t mqtt_msg;
+                mqtt_msg.head.id = MQTT_TASK_NET_INIT;
+                xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);  
         }
 
                    
