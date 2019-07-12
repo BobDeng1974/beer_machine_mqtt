@@ -109,7 +109,7 @@ void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...)
 }
 
 /**
-* @brief AT指令添加回应值前缀
+* @brief AT指令设置回应值前缀
 * @details
 * @param command AT指令指针
 * @param prefix 值的前缀
@@ -117,7 +117,7 @@ void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...)
 * @attention
 * @note
 */
-void at_command_add_value_prefix(at_command_t *command,char *prefix)
+void at_command_set_value_prefix(at_command_t *command,char *prefix)
 {
     log_assert_null_ptr(command);
     log_assert_null_ptr(prefix);
@@ -271,7 +271,7 @@ static int at_wait_frame_data(xuart_handle_t *handle,char *buffer,uint16_t size,
     while (frame_complete == 0) {  
         /*判断回应的数据是否超过限制*/
         if (frame_size + select_size >= size) {
-            log_error("at frame size:%d too large than limit:%d.\r\n",frame_size + select_size,size);
+            log_error("at frame size:%d too large than free:%d.\r\n",frame_size + select_size,size);
             return -1;
         }
 
@@ -410,7 +410,7 @@ int at_command_execute(at_command_t *command)
         }
         /*等待超时*/
         if (frame_size == 0) {
-            log_error("at command:%s wait timeout.\r\n",command->request != NULL ? command->request : "");
+            log_error("at command:%s wait timeout.\r\n",command->request != NULL ? command->request : "null");
             rc = -1;
             goto exit;
         }

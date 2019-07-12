@@ -66,7 +66,7 @@ typedef struct Thread
 } Thread;
 
 int ThreadStart(Thread*, void (*fn)(void*), void* arg);
-
+void ThreadDelete(int handle);
 /**
  * @brief Initialize the network structure
  *

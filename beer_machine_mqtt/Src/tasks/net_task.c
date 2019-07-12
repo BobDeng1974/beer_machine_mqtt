@@ -133,6 +133,7 @@ void net_task(void const * argument)
             rc = m6312_get_sim_card_status(&sim_card_status);
             /*sim卡存在，检测是否激活*/
             if (rc == 0 && sim_card_status == M6312_SIM_CARD_EXIST) {
+                m6312_set_auto_report_mode(M6312_AUTO_REPORT_MODE_OFF);
                 osSignalSet(net_task_hdl,NET_TASK_M6312_GET_SIM_OPERATOR);
             } else {
                 /*再次查询*/

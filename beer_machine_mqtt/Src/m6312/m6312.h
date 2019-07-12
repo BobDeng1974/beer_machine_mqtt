@@ -95,6 +95,13 @@ typedef enum
     SIM_OPERATOR_CHINA_UNICOM
 }m6312_sim_operator_t;
 
+/** M6312自动上报枚举*/
+typedef enum
+{
+    M6312_AUTO_REPORT_MODE_ON = 1,
+    M6312_AUTO_REPORT_MODE_OFF = 0
+}m6312_auto_report_mode_t;
+
 /**
 * @brief M6312模块开机
 * @param 无
@@ -301,6 +308,17 @@ int m6312_get_transport_mode(m6312_transport_mode_t *mode);
 */
 int m6312_set_transport_mode(m6312_transport_mode_t mode);
 
+
+/**
+* @brief M6312模块配置传送模式
+* @param mode 自动上报模式 @see m6312_auto_report_mode_t
+* @return M6312模块配置自动上报模式是否成功
+* @retval 0 配置成功
+* @retval -1 配置失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_auto_report_mode(m6312_auto_report_mode_t mode);
 /**
 * @brief M6312模块建立TCP或者UDP连接
 * @param socket 建立连接的通道号

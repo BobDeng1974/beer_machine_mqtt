@@ -112,7 +112,7 @@ void at_command_add_success_code(at_command_t *command,int code,uint8_t cnt,...)
 void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...);
 
 /**
-* @brief AT指令添加回应值前缀
+* @brief AT指令设置回应值前缀
 * @details
 * @param command AT指令指针
 * @param prefix 值的前缀
@@ -120,7 +120,7 @@ void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...);
 * @attention
 * @note
 */
-void at_command_add_value_prefix(at_command_t *command,char *prefix);
+void at_command_set_value_prefix(at_command_t *command,char *prefix);
 
 
 /**

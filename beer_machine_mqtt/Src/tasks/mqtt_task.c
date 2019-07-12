@@ -203,7 +203,7 @@ static int mqtt_task_subscribe(MQTTClient *client,char *topic,enum QoS qos,messa
         return -1;
     } 
 
-    log_debug("mqtt subscribe to topic:%s\r\n",topic);
+    log_info("mqtt subscribe to topic:%s success.\r\n",topic);
     return 0;
 }
 /**
@@ -233,7 +233,7 @@ static int mqtt_task_publish(MQTTClient *client,char *topic,enum QoS qos,char *p
         return -1;
     }
 
-    log_debug("mqtt publish topic:%s success code:%d\r\n",topic,rc);
+    log_info("mqtt publish topic:%s success code:%d\r\n",topic,rc);
     return 0;
 }
 
@@ -270,7 +270,7 @@ void mqtt_task(void const * argument)
         if (mqtt_msg_recv.head.id == MQTT_TASK_SUBSCRIBE) {
             rc = mqtt_task_subscribe(&client,DEVICE_LOG_TOPIC,0,message_handle);
             if (rc != 0) {
-                mqtt_msg.head.id = MQTT_TASK_SUBSCRIBE;
+                mqtt_msg.head.id = MQTT_TASK_NET_INIT;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);    
             } else {
                 mqtt_msg.head.id = MQTT_TASK_REPORT_LOG;
@@ -282,7 +282,7 @@ void mqtt_task(void const * argument)
         if (mqtt_msg_recv.head.id == MQTT_TASK_REPORT_LOG) {
             rc = mqtt_task_publish(&client,DEVICE_LOG_TOPIC,0,DEVICE_LOG_CONTENT,strlen(DEVICE_LOG_CONTENT));
             if (rc != 0) {
-                mqtt_msg.head.id = MQTT_TASK_REPORT_LOG;
+                mqtt_msg.head.id = MQTT_TASK_NET_INIT;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);   
             } else {
                 mqtt_msg.head.id = MQTT_TASK_REPORT_LOG;

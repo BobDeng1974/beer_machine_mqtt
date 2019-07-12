@@ -36,7 +36,10 @@ int ThreadStart(Thread* thread, void (*fn)(void*), void* arg)
     return rc;
 }
 
-
+void ThreadDelete(int handle)
+{
+    vTaskDelete((TaskHandle_t *)handle);
+}
 void MutexInit(Mutex* mutex)
 {
     mutex->sem = xSemaphoreCreateMutex();

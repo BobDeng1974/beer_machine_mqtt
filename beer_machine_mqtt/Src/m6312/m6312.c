@@ -38,7 +38,7 @@ static uint8_t send_buffer[M6312_SEND_BUFFER_SIZE];/**< m6312串口发送缓存*
 #define  M6312_PWR_ON_TIMEOUT                              5000  /**< m6312模块开机超时时间*/
 #define  M6312_PWR_OFF_TIMEOUT                             15000 /**< m6312模块关机超时时间*/
 
-#define  M6312_RESPONSE_TIMEOUT                            10000 /**< m6312模块回应超时时间*/
+#define  M6312_RESPONSE_TIMEOUT                            20000 /**< m6312模块回应超时时间*/
 #define  M6312_RESPONSE_BUFFER_SIZE                        200   /**< m6312模块回应缓存大小*/
 #define  M6312_REQUEST_BUFFER_SIZE                         200   /**< m6312模块请求缓存大小*/
 #define  M6312_RESPONSE_LINE_CNT_MAX                       10    /**< m6312模块回应行的最大数量*/
@@ -125,7 +125,7 @@ int m6312_uart_init(void)
 {
     int rc;
 
-	rc = xuart_init(&xuart_hal_driver);
+	rc = xuart_register_hal_driver(&xuart_hal_driver);
     if (rc != 0) {
         log_error("m6312 uart init err.\r\n");
         return -1;
@@ -187,7 +187,7 @@ int m6312_get_sim_card_status(m6312_sim_card_status_t *status)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CPIN:");
+    at_command_set_value_prefix(&command,"+CPIN:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 1) {
@@ -228,7 +228,7 @@ int m6312_get_operator(m6312_sim_operator_t *sim_operator)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+COPS:");
+    at_command_set_value_prefix(&command,"+COPS:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 3) {
@@ -266,7 +266,7 @@ int m6312_get_sim_card_id(char *sim_id)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CCID:");
+    at_command_set_value_prefix(&command,"+CCID:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 1) {
@@ -297,7 +297,7 @@ int m6312_get_gprs_attach_status(m6312_gprs_attach_status_t *status)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CGATT:");
+    at_command_set_value_prefix(&command,"+CGATT:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 1) {
@@ -396,7 +396,7 @@ int m6312_get_gprs_net_status(m6312_gprs_net_status_t *status)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CGACT:");
+    at_command_set_value_prefix(&command,"+CGACT:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 2) {
@@ -462,7 +462,7 @@ int m6312_get_sim_register_status(m6312_sim_register_status_t *status)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CGREG:");
+    at_command_set_value_prefix(&command,"+CGREG:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 2) {
@@ -511,7 +511,7 @@ int m6312_get_connection_mode(m6312_connection_mode_t *mode)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CMMUX:");
+    at_command_set_value_prefix(&command,"+CMMUX:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 1) {
@@ -578,7 +578,7 @@ int m6312_get_recv_cache_mode(m6312_recv_cache_mode_t *mode)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CMNDI:");
+    at_command_set_value_prefix(&command,"+CMNDI:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 2) {
@@ -646,7 +646,7 @@ int m6312_get_transport_mode(m6312_transport_mode_t *mode)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CMMODE:");
+    at_command_set_value_prefix(&command,"+CMMODE:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt == 1) {
@@ -693,6 +693,37 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode)
     log_error("m6312设置透明传输:%d失败.\r\n",mode);
     return -1;
 }
+
+/**
+* @brief M6312模块配置传送模式
+* @param mode 自动上报模式 @see m6312_auto_report_mode_t
+* @return M6312模块配置自动上报模式是否成功
+* @retval 0 配置成功
+* @retval -1 配置失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_auto_report_mode(m6312_auto_report_mode_t mode)
+{
+    int rc;
+    char response[M6312_RESPONSE_BUFFER_SIZE];
+    char *request = mode == M6312_AUTO_REPORT_MODE_ON ? "AT^CURC=1\r\n" : "AT^CURC=0\r\n";
+    at_command_t command;
+
+    at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
+    at_command_add_success_code(&command,0,1,"OK");
+    at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
+    rc = at_command_execute(&command);
+    /*判断执行结果*/
+    if (rc == 0) {
+        log_debug("m6312设置上报模式:%d成功.\r\n",mode);
+        return 0;
+    }
+
+    log_error("m6312设置上报模式:%d失败.\r\n",mode);
+    return -1;
+}
+
 /**
 * @brief M6312模块建立TCP或者UDP连接
 * @param socket 建立连接的通道号
@@ -841,7 +872,7 @@ int m6312_recv(uint8_t socket,uint8_t *recv_buffer,uint16_t size)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_add_value_prefix(&command,"+CMRD:");
+    at_command_set_value_prefix(&command,"+CMRD:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt >= 15) {

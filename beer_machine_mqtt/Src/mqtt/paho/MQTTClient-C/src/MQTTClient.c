@@ -360,6 +360,7 @@ int MQTTYield(MQTTClient* c, int timeout_ms)
 
 void MQTTRun(void* parm)
 {
+    int rc;
     Timer timer;
     MQTTClient* c = (MQTTClient*)parm;
 
@@ -371,7 +372,10 @@ void MQTTRun(void* parm)
 #if defined(MQTT_TASK)
         MutexLock(&c->mutex);
 #endif
-        cycle(c, &timer);
+        rc = cycle(c, &timer);
+        if (rc != 0) {
+            //ThreadDelete(0);
+        }
 #if defined(MQTT_TASK)
         MutexUnlock(&c->mutex);
 #endif
