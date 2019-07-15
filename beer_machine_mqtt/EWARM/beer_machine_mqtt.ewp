@@ -390,9 +390,8 @@
                     <state>$PROJ_DIR$/../Src/lib/src</state>
                     <state>$PROJ_DIR$/../Src/m6312</state>
                     <state>$PROJ_DIR$/../Src/debug/log/uart_console</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTClient-C/src</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTClient-C/src/FreeRTOS</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTPacket/src</state>
+                    <state>$PROJ_DIR$/../Src/mqtt/inc</state>
+                    <state>$PROJ_DIR$/../Src/mqtt/net</state>
                 </option>
                 <option>
                     <name>CCStdIncCheck</name>
@@ -1158,35 +1157,20 @@
             <group>
                 <name>mqtt</name>
                 <group>
-                    <name>mqtt_client</name>
+                    <name>mqtt_net</name>
                     <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTClient-C\src\MQTTClient.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTClient-C\src\FreeRTOS\MQTTFreeRTOS.c</name>
+                        <name>$PROJ_DIR$\..\Src\mqtt\net\mqttuart.c</name>
                     </file>
                 </group>
-                <group>
-                    <name>mqtt_packet</name>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTConnectClient.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTDeserializePublish.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTFormat.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTPacket.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTSerializePublish.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTSubscribeClient.c</name>
-                    </file>
-                </group>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_client.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_packet.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_socket.c</name>
+                </file>
             </group>
             <group>
                 <name>tasks</name>

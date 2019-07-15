@@ -4,7 +4,6 @@
 #include "tasks_init.h"
 #include "net_task.h"
 #include "mqtt_task.h"
-#include "MQTTClient.h"
 #include "log.h"
 
 
@@ -113,7 +112,7 @@ void net_task(void const * argument)
         if (os_event.status == osEventSignal) {
             /*m6312重启*/
             if (os_event.value.signals & NET_TASK_M6312_REBOOT) {
-                //m6312_pwr_off();
+                m6312_pwr_off();
                 m6312_pwr_on();
                 osSignalSet(net_task_hdl,NET_TASK_M6312_TURN_OFF_ECHO);
             }
