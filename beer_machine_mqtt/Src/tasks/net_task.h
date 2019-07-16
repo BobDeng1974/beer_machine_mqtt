@@ -28,5 +28,5 @@ void net_task(void const *argument);
 #define  NET_TASK_M6312_SET_RECV_CACHE_MODE     (1 << 15)
 
 
-#define  NET_TASK_ALL_SIGNALS                   ((1 << 11) - 1)
+#define  NET_TASK_ALL_SIGNALS                   ((1 << 16) - 1)
 #endif

@@ -24,7 +24,7 @@ int tasks_init(void)
     mqtt_task_hdl = osThreadCreate(osThread(mqtt_task), NULL);
     log_assert_null_ptr(mqtt_task_hdl);
 
-    osThreadDef(net_task, net_task, osPriorityNormal,0,400);
+    osThreadDef(net_task, net_task, osPriorityNormal,0,600);
     net_task_hdl = osThreadCreate(osThread(net_task), NULL);
     log_assert_null_ptr(net_task_hdl);
 

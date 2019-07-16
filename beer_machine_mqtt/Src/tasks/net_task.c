@@ -110,13 +110,13 @@ void net_task(void const * argument)
         osDelay(100);
         os_event = osSignalWait(NET_TASK_ALL_SIGNALS,osWaitForever);
         if (os_event.status == osEventSignal) {
-            /*m6312重启*/
-            if (os_event.value.signals & NET_TASK_M6312_REBOOT) {
-                m6312_pwr_off();
-                m6312_pwr_on();
-                osSignalSet(net_task_hdl,NET_TASK_M6312_TURN_OFF_ECHO);
-            }
+        /*m6312重启*/
+        if (os_event.value.signals & NET_TASK_M6312_REBOOT) {
+            m6312_pwr_off();
+            m6312_pwr_on();
+            osSignalSet(net_task_hdl,NET_TASK_M6312_TURN_OFF_ECHO);
         }
+        
         /*关闭回显*/
         if (os_event.value.signals & NET_TASK_M6312_TURN_OFF_ECHO) {
             rc = m6312_echo_turn_on_off(0);
@@ -291,8 +291,7 @@ void net_task(void const * argument)
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_INIT;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);  
         }
-
-                   
-
+        
+        }             
     }
 }

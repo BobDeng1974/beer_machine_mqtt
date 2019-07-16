@@ -30,13 +30,13 @@ QueueHandle_t  mqtt_task_msg_hdl;
 osThreadId  mqtt_task_hdl;       
 
 /* Default Configurations */
-#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/device/compressor/ctl"
-#define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/device/compressor/rsp_ctl"
+#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/device/compressor/ctrl"
+#define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/device/compressor/rsp_ctrl"
 
 #define  DEFAULT_MQTT_HOST             "47.92.229.28"
 #define  DEFAULT_MQTT_PORT             1883
-#define  DEFAULT_CMD_TIMEOUT_MS        20000
-#define  DEFAULT_CONN_TIMEOUT_MS       20000
+#define  DEFAULT_CMD_TIMEOUT_MS        5000
+#define  DEFAULT_CONN_TIMEOUT_MS       5000
 #define  DEFAULT_MQTT_QOS              MQTT_QOS_0
 #define  DEFAULT_KEEP_ALIVE_SEC        60
 #define  DEFAULT_CLIENT_ID             "wkxboot_client"
@@ -50,13 +50,13 @@ osThreadId  mqtt_task_hdl;
 #define  PRINT_BUFFER_SIZE             200
 
  /** mqtt上下文*/
-MQTTCtx mqtt_context;
+static MQTTCtx mqtt_context;
 
 /** mqtt接收和发送缓冲*/
-uint8_t send_buffer[MQTT_SEND_BUFFER_SIZE], recv_buffer[MQTT_RECV_BUFFER_SIZE];
+static uint8_t send_buffer[MQTT_SEND_BUFFER_SIZE],recv_buffer[MQTT_RECV_BUFFER_SIZE];
 
-/** 描述*/
-osTimerId mqtt_timer_id;
+/** 保活定时器*/
+static osTimerId mqtt_keep_alive_timer_id;
 
 /**
 * @brief m6312定时器回调
@@ -66,7 +66,7 @@ osTimerId mqtt_timer_id;
 * @attention
 * @note
 */
-static void mqtt_task_timer_callback(void const *argument);
+static void mqtt_task_keep_alive_timer_callback(void const *argument);
 
 
 /**
@@ -77,12 +77,12 @@ static void mqtt_task_timer_callback(void const *argument);
 * @attention
 * @note
 */
-void mqtt_task_timer_init(void)
+void mqtt_task_keep_alive_timer_init(void)
 {
-    osTimerDef(m6312_timer,mqtt_task_timer_callback);
+    osTimerDef(m6312_keep_alive_timer,mqtt_task_keep_alive_timer_callback);
 
-    mqtt_timer_id = osTimerCreate(osTimer(m6312_timer),osTimerOnce,NULL);
-    log_assert_null_ptr(mqtt_timer_id);
+    mqtt_keep_alive_timer_id = osTimerCreate(osTimer(m6312_keep_alive_timer),osTimerOnce,NULL);
+    log_assert_null_ptr(mqtt_keep_alive_timer_id);
 }
 /**
 * @brief m6312定时器开始
@@ -92,9 +92,9 @@ void mqtt_task_timer_init(void)
 * @attention
 * @note
 */
-static void mqtt_task_timer_start(uint32_t timeout)
+static void mqtt_task_keep_alive_timer_start(uint32_t timeout)
 {
-    osTimerStart(mqtt_timer_id,timeout);
+    osTimerStart(mqtt_keep_alive_timer_id,timeout);
 }
 /**
 * @brief m6312定时器停止
@@ -104,9 +104,9 @@ static void mqtt_task_timer_start(uint32_t timeout)
 * @attention
 * @note
 */
-static void mqtt_task_timer_stop(void)
+static void mqtt_task_keep_alive_timer_stop(void)
 {
-    osTimerStop(mqtt_timer_id);
+    osTimerStop(mqtt_keep_alive_timer_id);
 }
 /**
 * @brief m6312定时器回调
@@ -116,7 +116,7 @@ static void mqtt_task_timer_stop(void)
 * @attention
 * @note
 */
-static void mqtt_task_timer_callback(void const *argument)
+static void mqtt_task_keep_alive_timer_callback(void const *argument)
 {
     mqtt_task_msg_t msg;
     msg.head.id = MQTT_TASK_MSG_KEEP_ALIVE;
@@ -137,8 +137,8 @@ static int mqtt_task_disconnect_cb(MqttClient* client, int error_code, void* ctx
 {
     (void)client;
     (void)ctx;
-    log_info("Network Error Callback: %s (error %d)",
-        MqttClient_ReturnCodeToString(error_code), error_code);
+    log_info("Network Error Callback: %s (error %d)\r\n",
+             MqttClient_ReturnCodeToString(error_code), error_code);
     return 0;
 }
 /**
@@ -171,7 +171,7 @@ static int mqtt_task_message_cb(MqttClient *client, MqttMessage *msg,
 
         /* Print incoming message */
         log_info("MQTT Message: Topic %s, Qos %d, Len %u\r\n",
-            buf, msg->qos, msg->total_len);
+                 buf, msg->qos, msg->total_len);
 
     }
 
@@ -183,7 +183,7 @@ static int mqtt_task_message_cb(MqttClient *client, MqttMessage *msg,
     XMEMCPY(buf, msg->buffer, len);
     buf[len] = '\0'; /* Make sure its null terminated */
     log_info("Payload (%d - %d): %s\r\n",
-        msg->buffer_pos, msg->buffer_pos + len, buf);
+             msg->buffer_pos, msg->buffer_pos + len, buf);
 
     if (msg_done) {
         log_info("MQTT Message: Done\r\n");
@@ -216,7 +216,7 @@ static int mqtt_task_contex_init(MQTTCtx *mqtt_ctx)
     mqtt_ctx->conn_timeout_ms = DEFAULT_CONN_TIMEOUT_MS;
     mqtt_ctx->tx_buffer = send_buffer;
     mqtt_ctx->tx_buffer_size = MQTT_SEND_BUFFER_SIZE;
-    mqtt_ctx->rx_buffer = send_buffer;
+    mqtt_ctx->rx_buffer = recv_buffer;
     mqtt_ctx->rx_buffer_size = MQTT_RECV_BUFFER_SIZE;
     mqtt_ctx->use_tls = 0;
 
@@ -358,9 +358,9 @@ static int mqtt_task_subscribe_topics(MQTTCtx *mqtt_ctx)
     /* show subscribe results */
     for (i = 0; i < mqtt_ctx->subscribe.topic_count; i++) {
         mqtt_ctx->topic = &mqtt_ctx->topics[i];
-        log_info("  Topic %s, Qos %u, Return Code %u\r\n",
-           mqtt_ctx->topic->topic_filter,
-            mqtt_ctx->topic->qos, mqtt_ctx->topic->return_code);
+        log_info("Subscribe Topic %s, Qos %u, Return Code %u\r\n",
+                    mqtt_ctx->topic->topic_filter,
+                    mqtt_ctx->topic->qos, mqtt_ctx->topic->return_code);
     }
 
     return 0;
@@ -465,7 +465,7 @@ void mqtt_task(void const * argument)
     mqtt_task_msg_t mqtt_msg; 
     mqtt_task_msg_t mqtt_msg_recv; 
 
-    mqtt_task_timer_init();
+    mqtt_task_keep_alive_timer_init();
 
     while(1)
     {
@@ -480,28 +480,34 @@ void mqtt_task(void const * argument)
 
         /*处理建立连接*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_NET_CONNECT) {
-            rc = mqtt_task_connect(&mqtt_context);
-            if (rc != 0) {
-                mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
-            } else {
-                /*只要建立连接，准备心跳*/
-                if (mqtt_context.keep_alive_sec > 0) {
-                    mqtt_task_timer_start(mqtt_context.keep_alive_sec * 1000 / 2);
+            if (mqtt_context.is_connected == 0) {
+                rc = mqtt_task_connect(&mqtt_context);
+                if (rc != 0) {
+                    mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
+                    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                } else {
+                    /*只要建立连接，准备心跳*/
+                    if (mqtt_context.keep_alive_sec > 0) {
+                        mqtt_task_keep_alive_timer_start(mqtt_context.keep_alive_sec * 1000 / 2);
+                    }
+                    mqtt_context.is_connected = 1;
+                    mqtt_msg.head.id = MQTT_TASK_MSG_SUBSCRIBE;
+                    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
                 }
-                mqtt_msg.head.id = MQTT_TASK_MSG_SUBSCRIBE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
             }
         }
         /*处理断开连接*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_NET_DISCONNECT) {
-            /*只要端开连接，取消心跳*/
-            if (mqtt_context.keep_alive_sec > 0) {
-                mqtt_task_timer_stop();
+            if (mqtt_context.is_connected == 1) {
+                /*只要端开连接，取消心跳*/
+                if (mqtt_context.keep_alive_sec > 0) {
+                    mqtt_task_keep_alive_timer_stop();
+                }
+                mqtt_task_disconnect(&mqtt_context);
+                mqtt_context.is_connected = 0;
+                mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
             }
-            mqtt_task_disconnect(&mqtt_context);
-            mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
-            log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
         }
 
         /*处理订阅*/
@@ -550,9 +556,7 @@ void mqtt_task(void const * argument)
                 log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
             } else {
                 /*再次开启心跳*/
-                mqtt_task_timer_start(mqtt_context.keep_alive_sec * 1000 / 2);
-                mqtt_msg.head.id = MQTT_TASK_MSG_WAIT_MESSAGE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                mqtt_task_keep_alive_timer_start(mqtt_context.keep_alive_sec * (1000 / 2));
             }
         }
 

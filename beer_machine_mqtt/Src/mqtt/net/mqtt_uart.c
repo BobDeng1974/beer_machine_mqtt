@@ -107,6 +107,9 @@ static int NetRead(void *context, byte* buffer, int buffer_len,
             return MQTT_CODE_ERROR_NETWORK;
         }
         read_total += read;
+        if (read == 0) {
+            osDelay(500);
+        }
     }
 
     if (read_total == 0) {

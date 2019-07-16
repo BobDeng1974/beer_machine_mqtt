@@ -65,8 +65,8 @@ typedef struct _MQTTCtx {
     word16 keep_alive_sec;
     word16 port;
 
-    byte    clean_session;
-
+    byte clean_session;
+    int is_connected;
 } MQTTCtx;
 
 #endif /* __MQTT_CONTEXT_H__ */
