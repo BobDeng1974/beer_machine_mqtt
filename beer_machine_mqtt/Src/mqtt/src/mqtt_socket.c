@@ -20,9 +20,7 @@
  */
 
 /* Include the autoconf generated config.h */
-#ifdef HAVE_CONFIG_H
-    #include <config.h>
-#endif
+#include "mqtt_config.h"
 
 #ifdef WOLFMQTT_NONBLOCK
     #include <sys/errno.h>

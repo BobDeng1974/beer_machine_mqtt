@@ -1,4 +1,4 @@
-/* options.h.in
+/* mqttnet.h
  *
  * Copyright (C) 2006-2018 wolfSSL Inc.
  *
@@ -19,21 +19,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-
-/* default blank options for autoconf */
-
-#ifndef WOLFMQTT_OPTIONS_H
-#define WOLFMQTT_OPTIONS_H
-
+#ifndef WOLFMQTT_NET_H
+#define WOLFMQTT_NET_H
 
 #ifdef __cplusplus
-extern "C" {
+    extern "C" {
 #endif
 
+#include "mqtt_context.h"
+
+/* Functions used to handle the MqttNet structure creation / destruction */
+int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx);
+int MqttClientNet_DeInit(MqttNet* net);
+#ifdef WOLFMQTT_SN
+int SN_ClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx);
+#endif
 
 #ifdef __cplusplus
-}
+    } /* extern "C" */
 #endif
 
-
-#endif /* WOLFMQTT_OPTIONS_H */
+#endif /* WOLFMQTT_NET_H */

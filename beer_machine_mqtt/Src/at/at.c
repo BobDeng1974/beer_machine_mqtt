@@ -200,7 +200,11 @@ static void at_command_parse_value(at_command_t *command,char *token)
                 value = strtok(NULL,VALUE_SEPARATOR);
             }
         }
-    }   
+    } else {
+        /*没有前缀，整体作为值*/
+        command->value_parse.value[command->value_parse.cnt] = token;
+        command->value_parse.cnt ++;
+    }
 }
 
 

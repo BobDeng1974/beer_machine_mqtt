@@ -25,7 +25,6 @@ extern osThreadId  mqtt_task_hdl;
 */
 void mqtt_task(void const * argument);
 
-
 #define  MQTT_TASK_CONTENT_SIZE_MAX  128
 typedef struct
 {
@@ -39,9 +38,13 @@ typedef struct
     }content;
 }mqtt_task_msg_t;
 
-#define  MQTT_TASK_NET_INIT    0x100
-#define  MQTT_TASK_SUBSCRIBE   0x101
-#define  MQTT_TASK_REPORT_LOG  0x102
+#define  MQTT_TASK_MSG_NET_INIT        0x100
+#define  MQTT_TASK_MSG_NET_CONNECT     0x101
+#define  MQTT_TASK_MSG_NET_DISCONNECT  0x102
+#define  MQTT_TASK_MSG_SUBSCRIBE       0x103
+#define  MQTT_TASK_MSG_PUBLIC          0x104
+#define  MQTT_TASK_MSG_WAIT_MESSAGE    0x105
+#define  MQTT_TASK_MSG_KEEP_ALIVE      0x106
 
 
 

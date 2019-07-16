@@ -20,12 +20,10 @@
  */
 
 /* Include the autoconf generated config.h */
-#ifdef HAVE_CONFIG_H
-    #include <config.h>
-#endif
 
+#include "mqtt_config.h"
 #include "mqtt_client.h"
-#include "mqttnet.h"
+#include "mqtt_net.h"
 
 
 /* TODO: Add includes for UART HW */
@@ -33,10 +31,12 @@
 /* Include the example code */
 #include "tiny_timer.h"
 #include "m6312.h"
+#include "printf.h"
 
 
 /* this code is a template for using UART for communication */
-#if 1
+
+
 
 /* Local context for callbacks */
 typedef struct _UartContext {
@@ -44,6 +44,8 @@ typedef struct _UartContext {
     /* TODO: Add any other context info you want */
     int socket_id;
 } UartContext;
+
+UartContext uart_context;
 
 /* Private functions */
 static int NetConnect(void *context, const char* host, word16 port,
@@ -102,10 +104,19 @@ static int NetRead(void *context, byte* buffer, int buffer_len,
     while (tiny_timer_value(&timer) > 0 && read_total < buffer_len) {
         read = m6312_recv(uartCtx->socket_id,(uint8_t *)buffer + read_total,buffer_len - read_total);
         if (read < 0) {
-            return -1;
+            return MQTT_CODE_ERROR_NETWORK;
         }
         read_total += read;
     }
+
+    if (read_total == 0) {
+        return MQTT_CODE_ERROR_TIMEOUT;
+    }
+
+    if (read_total != buffer_len) {
+        return MQTT_CODE_ERROR_NETWORK;
+    }
+
 
     return read_total;
 }
@@ -128,7 +139,8 @@ int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
         net->read = NetRead;
         net->write = NetWrite;
         net->disconnect = NetDisconnect;
-        net->context = WOLFMQTT_MALLOC(sizeof(UartContext));
+        net->context = &uart_context;
+
     }
     (void)mqttCtx;
     return 0;
@@ -138,11 +150,9 @@ int MqttClientNet_DeInit(MqttNet* net)
 {
     if (net) {
         if (net->context) {
-            WOLFMQTT_FREE(net->context);
+            XMEMSET(net->context, 0, sizeof(UartContext));
         }
         XMEMSET(net, 0, sizeof(MqttNet));
     }
     return 0;
 }
-
-#endif

@@ -17,7 +17,7 @@
 */
 int tasks_init(void)
 {
-    mqtt_task_msg_hdl = xQueueCreate(2,sizeof(mqtt_task_msg_t));
+    mqtt_task_msg_hdl = xQueueCreate(6,sizeof(mqtt_task_msg_t));
     log_assert_null_ptr(mqtt_task_msg_hdl);
 
     osThreadDef(mqtt_task, mqtt_task, osPriorityNormal,0,800);

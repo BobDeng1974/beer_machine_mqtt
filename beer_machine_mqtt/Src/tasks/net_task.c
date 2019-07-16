@@ -164,22 +164,24 @@ void net_task(void const * argument)
         if (os_event.value.signals & NET_TASK_M6312_DETECT_GPRS_ATTACH) {
             rc = m6312_get_gprs_attach_status(&gprs_attach_status); 
             if (rc != 0) {
-                goto detect_attach_exit;
-            }
-            /*m6312没有附着网络，就附着网络*/
-            if (gprs_attach_status != M6312_GPRS_ATTACH) {
-                rc = m6312_set_gprs_attach(M6312_GPRS_ATTACH);
-                if (rc != 0) {
-                    goto detect_attach_exit;
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_ATTACH); 
+            } else {
+                if (gprs_attach_status != M6312_GPRS_ATTACH) {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_ATTACH);
+                } else {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_NET);
                 }
             }
+        }
 
-detect_attach_exit:  
-            if (rc == 0) {
-                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_NET); 
+        /*m6312设置附着网络*/
+        if (os_event.value.signals & NET_TASK_M6312_SET_GPRS_ATTACH) {
+            /*m6312没有附着网络，就附着网络*/
+            rc = m6312_set_gprs_attach(M6312_GPRS_ATTACH);
+            if (rc != 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_ATTACH); 
             } else {
-                /*再次查询*/
-                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_ATTACH);
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_NET);
             }
         }
 
@@ -187,23 +189,24 @@ detect_attach_exit:
         if (os_event.value.signals & NET_TASK_M6312_DETECT_GPRS_NET) {
             rc = m6312_get_gprs_net_status(&gprs_net_status);
             if (rc != 0) {
-                goto detect_net_exit;
-            }
-            /*m6312如果没有激活网络，就激活网络*/
-            if (gprs_net_status != M6312_GPRS_NET_ACTIVE) {
-                rc = m6312_set_gprs_net(M6312_GPRS_NET_ACTIVE);
-                if (rc != 0) {
-                    goto detect_net_exit;
-                }                    
-            }
-
-detect_net_exit:
-            if (rc == 0) {
-                /*m6312检测连接模式*/
-                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_CONNECTION_MODE);
-            } else {
-                /*再次查询*/
                 osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_GPRS_NET);
+            } else {
+                /*m6312如果没有激活网络，就激活网络*/
+                if (gprs_net_status != M6312_GPRS_NET_ACTIVE) {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_NET);
+                } else {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_CONNECTION_MODE);
+                }
+            }
+        }
+
+        /*m6312设置网络上下文*/
+        if (os_event.value.signals & NET_TASK_M6312_SET_GPRS_NET) {
+            rc = m6312_set_gprs_net(M6312_GPRS_NET_ACTIVE);
+            if (rc != 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_GPRS_NET);                 
+            } else {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_CONNECTION_MODE);
             }
         }
 
@@ -211,21 +214,24 @@ detect_net_exit:
         if (os_event.value.signals & NET_TASK_M6312_DETECT_CONNECTION_MODE) {
             rc = m6312_get_connection_mode(&connection_mode);
             if (rc != 0) {
-                goto detect_connection_mode_exit;
-            }
-            /*m6312检测是否设置多路连接模式*/
-            if (connection_mode != M6312_CONNECTION_MODE_MULTI) {
-                rc = m6312_set_connection_mode(M6312_CONNECTION_MODE_MULTI);
-                if (rc != 0) {
-                    goto detect_connection_mode_exit;
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_CONNECTION_MODE);
+            } else {
+                /*m6312检测是否设置多路连接模式*/
+                if (connection_mode != M6312_CONNECTION_MODE_MULTI) {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SET_CONNECTION_MODE);
+                } else {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_TRANSPORT_MODE);
                 }
             }
-detect_connection_mode_exit:
-            if (rc == 0) {
-                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_TRANSPORT_MODE);
+        }
+        /*m6312设置连接模式*/
+        if (os_event.value.signals & NET_TASK_M6312_SET_CONNECTION_MODE) {
+            rc = m6312_set_connection_mode(M6312_CONNECTION_MODE_MULTI);
+            if (rc != 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_CONNECTION_MODE);
             } else {
-                /*再次查询*/
-                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_CONNECTION_MODE);
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_TRANSPORT_MODE);
+
             }
         }
 
@@ -233,51 +239,56 @@ detect_connection_mode_exit:
         if (os_event.value.signals & NET_TASK_M6312_DETECT_TRANSPORT_MODE) {
             rc = m6312_get_transport_mode(&transport_mode);
             if (rc != 0) {
-                goto detect_transport_mode_exit;
-            }
-
-            /*m6312已经激活网络，检测是否设置多路连接模式*/
-            if (transport_mode != M6312_TRANSPORT_MODE_NO_TRANSPARENT) {
-                rc = m6312_set_transport_mode(M6312_TRANSPORT_MODE_NO_TRANSPARENT);
-                if (rc != 0) {
-                    goto detect_transport_mode_exit;
-                }
-            }
-detect_transport_mode_exit:
-                if (rc == 0) {
-                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_RECV_CACHE_MODE);
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_TRANSPORT_MODE);
+            } else {
+                /*m6312已经激活网络，检测是否设置多路连接模式*/
+                if (transport_mode != M6312_TRANSPORT_MODE_NO_TRANSPARENT) {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SET_TRANSPORT_MODE);
                 } else {
-                    /*再次查询*/
-                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_TRANSPORT_MODE);
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_RECV_CACHE_MODE);
                 }
+            }
         }
+        
+
+        /*m6312设置传输模式*/
+        if (os_event.value.signals & NET_TASK_M6312_SET_TRANSPORT_MODE) {
+            rc = m6312_set_transport_mode(M6312_TRANSPORT_MODE_NO_TRANSPARENT);
+            if (rc != 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_TRANSPORT_MODE);
+            } else {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_RECV_CACHE_MODE);
+            }
+        }
+
         /*m6312查询接收缓存模式*/
         if (os_event.value.signals & NET_TASK_M6312_DETECT_RECV_CACHE_MODE) {
             rc = m6312_get_recv_cache_mode(&recv_cache_mode);
             if (rc != 0) {
-                goto detect_recv_cache_mode_exit;
-            }
-
-            /*m6312已经多路连接模式，检测是否设置接收缓存模式*/
-            if (recv_cache_mode != M6312_RECV_CACHE_MODE_CACHED) {
-                rc = m6312_set_recv_cache_mode(M6312_RECV_CACHE_MODE_CACHED);
-                if (rc != 0) {
-                    goto detect_recv_cache_mode_exit;
-                }
-            }
-detect_recv_cache_mode_exit:
-                if (rc == 0) {
-                    osSignalSet(net_task_hdl,NET_TASK_M6312_SEND_MESSAGE);
+                osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_RECV_CACHE_MODE);
+            } else {
+                /*m6312已经多路连接模式，检测是否设置接收缓存模式*/
+                if (recv_cache_mode != M6312_RECV_CACHE_MODE_CACHED) {
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SET_RECV_CACHE_MODE);
                 } else {
-                    /*再次查询*/
-                    osSignalSet(net_task_hdl,NET_TASK_M6312_DETECT_RECV_CACHE_MODE);
+                    osSignalSet(net_task_hdl,NET_TASK_M6312_SEND_MESSAGE);
                 }
+            }
+        }
+        /*m6312设置接收缓存模式*/
+        if (os_event.value.signals & NET_TASK_M6312_SET_RECV_CACHE_MODE) {
+            rc = m6312_set_recv_cache_mode(M6312_RECV_CACHE_MODE_CACHED);
+            if (rc != 0) {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SET_RECV_CACHE_MODE);
+            } else {
+                osSignalSet(net_task_hdl,NET_TASK_M6312_SEND_MESSAGE);
+            }
         }
 
         /*m6312发送数据*/
         if (os_event.value.signals & NET_TASK_M6312_SEND_MESSAGE) {
                 mqtt_task_msg_t mqtt_msg;
-                mqtt_msg.head.id = MQTT_TASK_NET_INIT;
+                mqtt_msg.head.id = MQTT_TASK_MSG_NET_INIT;
                 xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5);  
         }
 

@@ -20,10 +20,8 @@
  */
 
 /* Include the autoconf generated config.h */
-#ifdef HAVE_CONFIG_H
-    #include <config.h>
-#endif
 
+#include "mqtt_config.h"
 #include "mqtt_client.h"
 
 /* Options */

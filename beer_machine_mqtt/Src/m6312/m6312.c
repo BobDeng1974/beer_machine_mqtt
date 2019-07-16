@@ -222,25 +222,29 @@ int m6312_get_operator(m6312_sim_operator_t *sim_operator)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];
-    char *request = "AT+COPS?\r\n";
+    char *request = "AT+CIMI\r\n";
     at_command_t command;
 
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_set_value_prefix(&command,"+COPS:");
+    //at_command_set_value_prefix(&command,"");
     rc = at_command_execute(&command);
     /*判断执行结果*/
-    if (rc == 0 && command.value_parse.cnt == 3) {
+    if (rc == 0 && command.value_parse.cnt == 1) {
         /*比对回应值*/
-        if (strcmp(command.value_parse.value[2],"\"46000\"") == 0 || strcmp(command.value_parse.value[2],"\"CMCC\"") == 0 || strcmp(command.value_parse.value[2],"\"ChinaMobile\"") == 0) {
+        if (strncmp(command.value_parse.value[0],"46000",5) == 0 || \
+            strncmp(command.value_parse.value[0],"46002",5) == 0 || \
+            strncmp(command.value_parse.value[0],"46004",5) == 0 || \
+            strncmp(command.value_parse.value[0],"46007",5) == 0) {
             *sim_operator = SIM_OPERATOR_CHINA_MOBILE;
-        } else if (strcmp(command.value_parse.value[2],"\"46001\"") == 0 || strcmp(command.value_parse.value[2],"\"CU\"") == 0 || strcmp(command.value_parse.value[2],"\"ChinaUnicom\"") == 0) {
+        } else if (strncmp(command.value_parse.value[0],"46001",5) == 0 || \
+                   strncmp(command.value_parse.value[0],"46006",5) == 0) {
             *sim_operator = SIM_OPERATOR_CHINA_UNICOM;
         } else  {
             goto err_exit;
         }
-        log_debug("m6312获取sim卡运营商:%s成功.\r\n",command.value_parse.value[2]);
+        log_debug("m6312获取sim卡运营商:%s成功.\r\n",command.value_parse.value[0]);
         return 0;
     }
 
