@@ -39,7 +39,7 @@ typedef enum
 typedef enum
 {
     M6312_CONNECT_TCP,
-    M6312_CONENCT_UDP
+    M6312_CONNECT_UDP
 }m6312_connect_type_t;
 
  /** sim卡注册状态枚举*/
@@ -330,7 +330,7 @@ int m6312_set_auto_report_mode(m6312_auto_report_mode_t mode);
 * @attention 无
 * @note 无
 */
-int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type);
+int m6312_connect(const uint8_t socket,const char *host,const char *port,m6312_connect_type_t type);
 
 /**
 * @brief M6312模块关闭TCP或者UDP连接
@@ -341,7 +341,7 @@ int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type
 * @attention 无
 * @note 无
 */
-int m6312_close(uint8_t socket);
+int m6312_close(const uint8_t socket);
 
 /**
 * @brief M6312模块发送数据
@@ -354,7 +354,7 @@ int m6312_close(uint8_t socket);
 * @attention 无
 * @note 无
 */
-int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size);
+int m6312_send(const uint8_t socket_id,const uint8_t *buffer,uint16_t size);
 
 /**
 * @brief M6312模块接收数据
@@ -367,7 +367,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size);
 * @attention 无
 * @note 无
 */
-int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size);
+int m6312_recv(const uint8_t socket_id,uint8_t *recv_buffer,uint16_t size);
 
 
 

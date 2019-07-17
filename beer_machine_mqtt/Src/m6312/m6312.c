@@ -739,7 +739,7 @@ int m6312_set_auto_report_mode(m6312_auto_report_mode_t mode)
 * @attention 无
 * @note 无
 */
-int m6312_connect(uint8_t socket,char *host,char *port,m6312_connect_type_t type)
+int m6312_connect(const uint8_t socket,const char *host,const char *port,m6312_connect_type_t type)
 {
     int rc;
     char *connect_type;
@@ -814,7 +814,7 @@ int m6312_close(uint8_t socket)
 * @attention 无
 * @note 无
 */
-int m6312_send(uint8_t socket,uint8_t *buffer,uint16_t size)
+int m6312_send(const uint8_t socket,const uint8_t *buffer,uint16_t size)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];

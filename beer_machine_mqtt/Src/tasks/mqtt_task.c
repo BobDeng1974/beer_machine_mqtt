@@ -503,15 +503,19 @@ void mqtt_task(void const * argument)
                 if (mqtt_context.keep_alive_sec > 0) {
                     mqtt_task_keep_alive_timer_stop();
                 }
-                mqtt_task_disconnect(&mqtt_context);
-                mqtt_context.is_connected = 0;
-                mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
             }
+            mqtt_task_disconnect(&mqtt_context);
+            mqtt_context.is_connected = 0;
+            mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
+            log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+            
         }
 
         /*处理订阅*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_SUBSCRIBE) {
+            if (mqtt_context.is_connected == 0) {
+                continue;
+            }
             rc = mqtt_task_subscribe_topics(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
@@ -524,6 +528,10 @@ void mqtt_task(void const * argument)
 
         /*处理发布*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_PUBLIC) {
+
+            if (mqtt_context.is_connected == 0) {
+                continue;
+            }
             rc = mqtt_task_publish_topic(&mqtt_context,DEVICE_COMPRESSOR_CTRL_RSP_TOPIC,(uint8_t *)mqtt_msg_recv.content.value,mqtt_msg_recv.content.size);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
@@ -537,6 +545,10 @@ void mqtt_task(void const * argument)
         /*处理等待消息*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_WAIT_MESSAGE) {
             
+            if (mqtt_context.is_connected == 0) {
+                continue;
+            }
+
             rc = mqtt_task_wait_message(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
@@ -549,7 +561,9 @@ void mqtt_task(void const * argument)
 
         /*处理心跳*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_KEEP_ALIVE) {
-            
+            if (mqtt_context.is_connected == 0) {
+                continue;
+            }
             rc = mqtt_task_keep_alive(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;

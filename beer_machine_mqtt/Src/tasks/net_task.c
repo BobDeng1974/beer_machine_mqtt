@@ -4,6 +4,7 @@
 #include "tasks_init.h"
 #include "net_task.h"
 #include "mqtt_task.h"
+#include "socket.h"
 #include "log.h"
 
 
@@ -101,7 +102,9 @@ void net_task(void const * argument)
     m6312_sim_operator_t sim_operator;
     char sim_id[20];
 
+    socket_init();
     m6312_uart_init();
+
     net_task_m6312_timer_init();
     osSignalSet(net_task_hdl,NET_TASK_M6312_REBOOT);
     log_debug("net task run...\r\n");
