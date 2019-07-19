@@ -44,6 +44,9 @@ typedef struct
     char *url;
     float temperature_cold;
     float temperature_freeze;
+    float temperature_env;
+    uint32_t compressor_run_time;
+    uint8_t compressor_status;
     base_information_t base_info;
 }device_log_t;
 
@@ -71,7 +74,7 @@ typedef struct
     char     download_url[100];
     char     md5[33];
     bool     update;
-}report_upgrade_t;
+}device_upgrade_t;
 
 
 /*设备运行配置信息表*/
@@ -80,8 +83,8 @@ typedef struct
     http_client_context_t *http_ctx;
     char *url;
     uint32_t report_log_interval;
-    int8_t temperature_cold;
-    int8_t temperature_freeze;
+    float temperature_cold;
+    float temperature_freeze;
     int lock;
     int is_new;
 }device_config_t;
@@ -132,21 +135,71 @@ static uint32_t report_task_get_retry_timeout(int retry)
     return 0;
 }
 
+static int report_task_do_download(http_client_context_t *http_client_ctx,char *url,char *buffer,uint32_t start,uint16_t size)
+{
+    int rc;
+
+    http_client_context_t context;
+
+    http_client_ctx->range_size = size;
+    http_client_ctx->range_start = start;
+    http_client_ctx->rsp_buffer = buffer;
+    http_client_ctx->rsp_buffer_size = size;
+    http_client_ctx->url = url;
+    http_client_ctx->timeout = 10000;
+    http_client_ctx->user_data = NULL;
+    http_client_ctx->user_data_size = 0;
+    http_client_ctx->boundary = BOUNDARY;
+    http_client_ctx->is_form_data = false;
+    http_client_ctx->content_type = "application/Json"; 
+  
+    rc = http_client_download(&context);
+  
+    if(rc != 0 ){
+        log_error("download bin err.\r\n");
+        return -1; 
+    }
+    if(context.content_size != size){
+        log_error("download bin size err.\r\n");
+        return -1; 
+    }
+    log_debug("download bin ok. size:%d.\r\n",size);
+    return 0;
+}
+
+static uint8_t download_buffer[2050];
+
 static int report_task_download_upgrade_file(device_upgrade_t *upgrade)
 {
+    int rc,size;
+
     size = upgrade->bin_size - upgrade->download_size > DEVICE_MIN_ERASE_SIZE ? DEVICE_MIN_ERASE_SIZE : upgrade->bin_size - upgrade->download_size;
+    rc = report_task_do_download(&upgrade->http_client_context,upgrade->url,download_buffer,size);
+    if (rc != 0) {
+        log_error("download fail.\r\n");
+        return -1;
+    }
+    rc = flash_if_write(APPLICATION_UPDATE_BASE_ADDR + upgrade->download_size,download_buffer,size);
+    if (rc != 0) {
+        return -1;
+    }
+    if (upgrade->bin_size == upgrade->download_size) {
+        upgrade->completion = 1;
+    }
+    return 0;
 }
 static int report_task_process_upgrade(device_upgrade_t *upgrade)
 {
-                    /*下载完成 计算md5*/
-                    char md5_hex[16];
-                    char md5_str[33];
-                    md5((const char *)(BOOTLOADER_FLASH_BASE_ADDR + BOOTLOADER_FLASH_UPDATE_APPLICATION_ADDR_OFFSET),upgrade->bin_size,md5_hex);
-                    /*转换成hex字符串*/
-                    bytes_to_hex_str(md5_hex,md5_str,16);
-                    /*校验成功，启动升级*/
-                    if (strcmp(md5_str,upgrade->md5) == 0) {             
-                    } else {
+    /*下载完成 计算md5*/
+    char md5_hex[16];
+    char md5_str[33];
+    
+    md5((const char *)(APPLICATION_UPDATE_BASE_ADDR),upgrade->bin_size,md5_hex);
+    /*转换成hex字符串*/
+    dump_hex_to_string(md5_hex,md5_str,16);
+    /*校验成功，启动升级*/
+    if (strcmp(md5_str,upgrade->md5) == 0) {             
+    } else {
                     /*中止本次升级*/
                     log_error("md5 err.calculate:%s recv:%s.stop upgrade.\r\n",md5_str,upgrade->md5);
                     /*开启定时作为同步时间定时器*/

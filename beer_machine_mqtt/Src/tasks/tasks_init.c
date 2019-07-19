@@ -2,6 +2,7 @@
 #include "tasks_init.h"
 #include "mqtt_task.h"
 #include "net_task.h"
+#include "firmware_version.h"
 #include "log.h"
 
 
@@ -17,8 +18,8 @@
 */
 int tasks_init(void)
 {
-    log_info("\r\nfirmware version: %s\r\n\r\n",report_active.fw_version);
-    log_info("\r\nSN: %s\r\n\r\n",report_active.sn);
+    log_info("\r\nfirmware version: %s\r\n\r\n",FIRMWARE_VERSION_STR);
+    log_info("\r\nSN: %s\r\n\r\n",);
 
     mqtt_task_msg_hdl = xQueueCreate(6,sizeof(mqtt_task_msg_t));
     log_assert_null_ptr(mqtt_task_msg_hdl);
