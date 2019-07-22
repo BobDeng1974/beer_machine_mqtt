@@ -5,9 +5,6 @@
 
 extern osThreadId  report_task_handle;
 extern osMessageQId report_task_msg_q_id;
-extern osMessageQId report_task_location_msg_q_id;
-extern osMessageQId report_task_net_hal_info_msg_q_id;
-
 void report_task(void const * argument);
 
 
@@ -18,7 +15,7 @@ void report_task(void const * argument);
 #define  REPORT_TASK_RETRY2_DELAY                   (5 * 60 * 1000)/*第二次重试间隔时间ms*/
 #define  REPORT_TASK_RETRY3_DELAY                   (10 * 60 * 1000)/*第三次重试间隔时间ms*/
 
-#define  REPORT_TASK_FAULT_QUEUE_SIZE               14 /*故障队列大小*/ 
+#define  REPORT_TASK_FAULT_QUEUE_SIZE               16 /*故障队列大小*/ 
 
 
 typedef enum
