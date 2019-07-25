@@ -1214,6 +1214,9 @@
             <group>
                 <name>tasks</name>
                 <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\compressor_task.c</name>
+                </file>
+                <file>
                     <name>$PROJ_DIR$\..\Src\tasks\mqtt_task.c</name>
                 </file>
                 <file>

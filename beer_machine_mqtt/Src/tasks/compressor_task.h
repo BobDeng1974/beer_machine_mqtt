@@ -29,25 +29,34 @@ void compressor_task(void const *argument);
 #define  COMPRESSOR_TASK_PWR_WAIT_TIMEOUT      (2*60*1000)   /*压缩机上电后等待就绪的时间 单位:ms*/
 
 
-typedef enum
+enum
 {
-  COMPRESSOR_TASK_MSG_TEMPERATURE_VALUE,
-  COMPRESSOR_TASK_MSG_TEMPERATURE_ERR,
-  COMPRESSOR_TASK_MSG_WORK_TIMEOUT,
-  COMPRESSOR_TASK_MSG_WAIT_TIMEOUT,
-  COMPRESSOR_TASK_MSG_REST_TIMEOUT,
-  COMPRESSOR_TASK_MSG_PWR_WAIT_TIMEOUT,
-  COMPRESSOR_TASK_MSG_TEMPERATURE_CONFIG,
-  COMPRESSOR_TASK_MSG_LOCK_CONFIG,
-}compressor_task_msg_type_t;
-
+    COMPRESSOR_TASK_MSG_PWR_ON_ENABLE,
+    COMPRESSOR_TASK_MSG_PWR_ON_DISABLE,
+    COMPRESSOR_TASK_MSG_TEMPERATURE_VALUE,
+    COMPRESSOR_TASK_MSG_TEMPERATURE_ERR,
+    COMPRESSOR_TASK_MSG_UPDATE_STATUS,
+    COMPRESSOR_TASK_MSG_WORK_TIMEOUT,
+    COMPRESSOR_TASK_MSG_WAIT_TIMEOUT,
+    COMPRESSOR_TASK_MSG_REST_TIMEOUT,
+    COMPRESSOR_TASK_MSG_PWR_WAIT_TIMEOUT,
+    COMPRESSOR_TASK_MSG_TEMPERATURE_CONFIG,
+    COMPRESSOR_TASK_MSG_PWR_ON,
+    COMPRESSOR_TASK_MSG_PWR_OFF
+};
 
 typedef struct
 {
-uint32_t type:8;
-uint32_t value:8;
-uint32_t reserved:16;
-}compressor_task_msg_t;
+    struct {
+        uint32_t id;
+        uint32_t type;
+    }head;
+    union {
+        float value_float[2];
+        uint32_t value_uint32;
+        int32_t value_int32;
+    }content;
+}compressor_task_message_t;
 
 COMPRESSOR_TASK_END
 

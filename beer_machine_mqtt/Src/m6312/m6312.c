@@ -448,6 +448,42 @@ int m6312_set_gprs_net(m6312_gprs_net_status_t status)
     return -1;
 }
 
+/**
+* @brief M6312模块设置注册模式
+* @param mode 注册模式 @see m6312_register_mode_t
+* @return M6312模块设置注册模式是否成功
+* @retval 0 成功
+* @retval -1 失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_register_mode(m6312_register_mode_t mode)
+{
+    int rc;
+    char response[M6312_RESPONSE_BUFFER_SIZE];
+    char *request;
+    at_command_t command;
+
+    if (mode == M6312_ACTIVE_REGISTER_AND_LOCATION_REPORT) {
+        request = "AT+CREG=2\r\n";
+    } else if (mode == M6312_ACTIVE_REGISTER_REPORT) {
+        request = "AT+CREG=1\r\n";
+    } else {
+        request = "AT+CREG=0\r\n";
+    }
+    at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
+    at_command_add_success_code(&command,0,1,"OK");
+    at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
+    rc = at_command_execute(&command);
+    /*判断执行结果*/
+    if (rc == 0) {
+        log_debug("m6312设置mode:%d成功.\r\n",mode);
+        return 0;
+    }
+
+    log_error("m6312设置mode:%d失败.\r\n",mode);
+    return -1;
+}
 
 /**
 * @brief M6312模块获取sim卡注册状态
@@ -456,7 +492,7 @@ int m6312_set_gprs_net(m6312_gprs_net_status_t status)
 * @attention 无
 * @note 无
 */
-int m6312_get_sim_register_status(m6312_sim_register_status_t *status)
+int m6312_get_register_status(m6312_register_status_t *register_status)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];
@@ -469,30 +505,102 @@ int m6312_get_sim_register_status(m6312_sim_register_status_t *status)
     at_command_set_value_prefix(&command,"+CGREG:");
     rc = at_command_execute(&command);
     /*判断执行结果*/
-    if (rc == 0 && command.value_parse.cnt == 2) {
+    if (rc == 0 && command.value_parse.cnt >= 2) {
         /*对比回应值*/
         if (strcmp(command.value_parse.value[1],"0") == 0) {
-            *status = M6312_SIM_REGISTER_NO;
+            register_status->sim_status = M6312_SIM_REGISTER_NO;
         } else if (strcmp(command.value_parse.value[1],"1") == 0) {
-            *status = M6312_SIM_REGISTER_YES;
+            register_status->sim_status = M6312_SIM_REGISTER_YES;
         } else if (strcmp(command.value_parse.value[1],"2") == 0) {
-            *status = M6312_SIM_REGISTER_NO;
+            register_status->sim_status = M6312_SIM_REGISTER_NO;
         } else if (strcmp(command.value_parse.value[1],"3") == 0) {
-            *status = M6312_SIM_REGISTER_YES;
+            register_status->sim_status = M6312_SIM_REGISTER_YES;
         } else if (strcmp(command.value_parse.value[1],"4") == 0) {
-            *status = M6312_SIM_REGISTER_NO;
+            register_status->sim_status = M6312_SIM_REGISTER_NO;
         } else if (strcmp(command.value_parse.value[1],"5") == 0) {
-            *status = M6312_SIM_REGISTER_YES;
+            register_status->sim_status = M6312_SIM_REGISTER_YES;
         } else {
-            *status = M6312_SIM_REGISTER_UNKNOW;
+            register_status->sim_status = M6312_SIM_REGISTER_UNKNOW;
+        }
+        if (command.value_parse.cnt >= 5) {
+            strcpy(register_status->lac,command.value_parse.value[2]);
+            strcpy(register_status->lac,command.value_parse.value[3]);
+            strcpy(register_status->lac,command.value_parse.value[4]);
         }
 
-        log_debug("m6312查询sim卡注册状态:%s成功.\r\n",command.value_parse.value[1]);
+        log_debug("m6312查询注册状态:sim卡%s成功.\r\n",command.value_parse.value[1]);
         return 0;
     }
 
 
-    log_error("m6312查询sim卡注册状态失败.\r\n");
+    log_error("m6312查询注册状态失败.\r\n");
+    return -1;
+}
+
+/**
+* @brief M6312模块获取主基站信号强度字符串
+* @param rssi 信号强度字符指针
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_master_base_rssi(char *rssi)
+{
+    int rc;
+    char response[M6312_RESPONSE_BUFFER_SIZE];
+    char *request = "AT+CSQ\r\n";
+    at_command_t command;
+
+    at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
+    at_command_add_success_code(&command,0,1,"OK");
+    at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
+    at_command_set_value_prefix(&command,"+CSQ:");
+    rc = at_command_execute(&command);
+    /*判断执行结果*/
+    if (rc == 0 && command.value_parse.cnt == 2) {
+        strcpy(rssi,command.value_parse.value[0]);
+        log_debug("m6312查询主基站rssi%s成功.\r\n",command.value_parse.value[1]);
+        return 0;
+    }
+    log_debug("m6312查询主基站rssi失败.\r\n");
+    return -1;
+}
+
+/**
+* @brief M6312模块获取所有基站信息
+* @param base_info 基站信息指针
+* @param limit 基站信息最大数量
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_all_base_info(base_information_t *base_info,uint8_t limit)
+{
+    int rc;
+    int cnt = 0;
+    char response[M6312_RESPONSE_BUFFER_SIZE];
+    char *request = "AT+CCED=0,2\r\n";
+    at_command_t command;
+
+    at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
+    at_command_add_success_code(&command,0,1,"OK");
+    at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
+    at_command_set_value_prefix(&command,"+CCED:");
+    rc = at_command_execute(&command);
+    /*判断执行结果*/
+    if (rc == 0 && command.value_parse.cnt >= 6) {
+        for (uint8_t i = 0; i < command.value_parse.cnt / 6 && i < limit;i ++) {
+            cnt ++;
+            strcpy(base_info->base[i].lac,command.value_parse.value[2 + i * 6]);
+            strcpy(base_info->base[i].cid,command.value_parse.value[3 + i * 6]);
+            strcpy(base_info->base[i].cid,command.value_parse.value[5 + i * 6]);
+        }
+        base_info->cnt = cnt;
+        log_debug("m6312查询所有基站信息成功.\r\n");
+        return 0;
+    }
+
+    log_debug("m6312查询所有基站信息失败.\r\n");
     return -1;
 }
 

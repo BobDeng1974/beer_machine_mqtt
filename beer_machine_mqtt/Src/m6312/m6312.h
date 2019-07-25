@@ -51,7 +51,15 @@ typedef enum
     M6312_SIM_REGISTER_DENY,
     M6312_SIM_REGISTER_UNKNOW,
     M6312_SIM_REGISTER_ROAM
-}m6312_sim_register_status_t;
+}m6312_sim_status_t;
+ /** m6312注册状态*/
+typedef struct
+{
+    m6312_sim_status_t sim_status;
+    char lac[10];
+    char cid[10];
+    char rssi[10];
+}m6312_register_status_t;
 
 /** GPRS网络附着状态枚举*/
 typedef enum
@@ -66,6 +74,14 @@ typedef enum
     M6312_GPRS_NET_ACTIVE = 1,
     M6312_GPRS_NET_INACTIVE = 0
 }m6312_gprs_net_status_t;
+
+/** M6312接收缓存模式枚举*/
+typedef enum
+{
+    M6312_DEACTIVE_REGISTER_REPORT = 0,
+    M6312_ACTIVE_REGISTER_REPORT = 1,
+    M6312_ACTIVE_REGISTER_AND_LOCATION_REPORT = 2,
+}m6312_register_mode_t;
 
 /** M6312接收缓存模式枚举*/
 typedef enum
@@ -101,6 +117,21 @@ typedef enum
     M6312_AUTO_REPORT_MODE_ON = 1,
     M6312_AUTO_REPORT_MODE_OFF = 0
 }m6312_auto_report_mode_t;
+
+
+#define  BASE_CNT_MAX  5
+typedef struct
+{
+    char lac[8];
+    char cid[8];
+    char rssi[4]; 
+}base_t;
+
+typedef struct
+{
+    base_t base[BASE_CNT_MAX];
+    int cnt;
+}base_information_t;/**< 基站信息*/
 
 /**
 * @brief M6312模块开机
@@ -230,14 +261,43 @@ int m6312_get_gprs_net_status(m6312_gprs_net_status_t *status);
 int m6312_set_gprs_net(m6312_gprs_net_status_t status);
 
 /**
+* @brief M6312模块设置注册模式
+* @param mode 注册模式 @see m6312_register_mode_t
+* @return M6312模块设置注册模式是否成功
+* @retval 0 成功
+* @retval -1 失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_register_mode(m6312_register_mode_t mode);
+
+/**
 * @brief M6312模块获取sim卡注册状态
 * @param status sim卡注册状态
 * @return 获取状态是否成功
 * @attention 无
 * @note 无
 */
-int m6312_get_sim_register_status(m6312_sim_register_status_t *status);
+int m6312_get_register_status(m6312_register_status_t *register_status);
 
+/**
+* @brief M6312模块获取主基站信号强度字符串
+* @param rssi 信号强度字符指针
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_master_base_rssi(char *rssi);
+
+/**
+* @brief M6312模块获取所有基站信息
+* @param base_info 基站信息指针
+* @param limit 基站信息最大数量
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_all_base_info(base_information_t *base_info,uint8_t limit);
 /**
 * @brief M6312模块获取连接模式
 * @param mode 连接模式指针@see m6312_connection_mode_t

@@ -38,7 +38,7 @@ typedef struct
     }content;
 }mqtt_task_msg_t;
 
-#define  MQTT_TASK_MSG_NET_INIT        0x100
+#define  MQTT_TASK_MSG_NET_READY       0x100
 #define  MQTT_TASK_MSG_NET_CONNECT     0x101
 #define  MQTT_TASK_MSG_NET_DISCONNECT  0x102
 #define  MQTT_TASK_MSG_SUBSCRIBE       0x103

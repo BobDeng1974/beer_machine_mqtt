@@ -19,7 +19,8 @@
 
 #define  ENV_NAME_COMPRESSOR_CTRL                  "c_ctrl"
 #define  ENV_NAME_TEMPERATURE_COLD                 "t_cold"    
-#define  ENV_NAME_TEMPERATURE_FREEZE               "t_freeze"  
+#define  ENV_NAME_TEMPERATURE_FREEZE               "t_freeze"
+#define  ENV_NAME_LOG_INTERVAL                     "log_interval"
 
 /*啤酒机默认运行配置参数表*/
 #define  DEFAULT_COMPRESSOR_COLD_TEMPERATURE         2   /**< 默认压缩机冷藏温度*/
