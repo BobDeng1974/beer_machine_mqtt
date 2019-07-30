@@ -39,6 +39,7 @@ typedef struct
 typedef struct
 {
     char *prefix; /**< 值域的前缀*/
+    char *prefix_separator;/**< 值的前缀分隔符*/
     char *value[AT_VALUE_CNT_MAX];/**< 值域的值指针*/
     uint8_t cnt;/**< 值域的值的数量*/
 }at_value_parse_t;
@@ -111,6 +112,16 @@ void at_command_add_success_code(at_command_t *command,int code,uint8_t cnt,...)
 */
 void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...);
 
+/**
+* @brief AT指令设置回应值前缀分隔符
+* @details
+* @param command AT指令指针
+* @param prefix 值的前缀分隔符
+* @return 无
+* @attention
+* @note
+*/
+void at_command_set_value_prefix_separator(at_command_t *command,char *prefix_separator);
 /**
 * @brief AT指令设置回应值前缀
 * @details

@@ -127,7 +127,7 @@ static int http_client_recv_head(http_client_context_t *context,char *buffer,uin
  
     /*获取http head*/
     do {
-    rc = socket_recv(context->handle,buffer + recv_total,1,tiny_timer_value(&timer));
+    rc = socket_read(context->handle,buffer + recv_total,1,tiny_timer_value(&timer));
     if (rc < 0) {
         log_error("http header recv err.code:%d.\r\n",rc);
         return -1;
@@ -179,7 +179,7 @@ static int http_client_recv_chunk_size(http_client_context_t *context,uint32_t t
     context->chunk_size = 0;
     /*获取chunk code*/
     do{
-    rc = socket_recv(context->handle,chunk_code + recv_total,1,tiny_timer_value(&timer));
+    rc = socket_read(context->handle,chunk_code + recv_total,1,tiny_timer_value(&timer));
     if (rc < 0) {
         log_error("http chunk code recv err.code:%d.\r\n",rc);
         return -1;
@@ -211,7 +211,7 @@ static int http_client_recv_chunk_tail(http_client_context_t *context,uint32_t t
   
     tiny_timer_init(&timer,0,timeout);
   
-    rc = socket_recv(context->handle,tail ,2,tiny_timer_value(&timer));
+    rc = socket_read(context->handle,tail ,2,tiny_timer_value(&timer));
     if (rc < 0) {
         log_error("http chunk code recv err.\r\n");
         return -1;
@@ -255,7 +255,7 @@ static int http_client_recv_chunk(http_client_context_t *context,uint32_t timeou
         return -1;   
     }
   
-    rc = socket_recv(context->handle,context->rsp_buffer + context->content_size,context->chunk_size,tiny_timer_value(&timer));
+    rc = socket_read(context->handle,context->rsp_buffer + context->content_size,context->chunk_size,tiny_timer_value(&timer));
     if (rc < 0) {
         log_error("http chunk code recv err.\r\n");
         return -1;
@@ -303,7 +303,7 @@ static int http_client_request(const char *method,http_client_context_t *context
         goto err_handler;
     }
     /*http建立连接*/
-    rc = socket_connect(context->host,context->port,SOCKET_PROTOCOL_TCP);
+    rc = socket_open(context->host,context->port,SOCKET_PROTOCOL_TCP);
     if(rc < 0){
         goto err_handler;
     }
@@ -311,7 +311,7 @@ static int http_client_request(const char *method,http_client_context_t *context
     context->connected = true;
  
     /*http head发送*/
-    rc = socket_send(context->handle,http_buffer,head_size,tiny_timer_value(&timer));
+    rc = socket_write(context->handle,http_buffer,head_size,tiny_timer_value(&timer));
     if (rc != head_size) {
         log_error("http head send err.\r\n");
         goto err_handler;
@@ -319,7 +319,7 @@ static int http_client_request(const char *method,http_client_context_t *context
 
     /*http user data发送*/
     if (context->user_data_size > 0) {
-        rc = socket_send(context->handle,context->user_data,context->user_data_size,tiny_timer_value(&timer));
+        rc = socket_write(context->handle,context->user_data,context->user_data_size,tiny_timer_value(&timer));
         if (rc != context->user_data_size) {
             log_error("http user data send err.\r\n");
             goto err_handler;
@@ -346,7 +346,7 @@ static int http_client_request(const char *method,http_client_context_t *context
             log_error("content size:%d large than free buffer size:%d.\r\n",context->content_size,context->rsp_buffer_size);   
             return -1;
         }
-        rc = socket_recv(context->handle,context->rsp_buffer,context->content_size,tiny_timer_value(&timer));
+        rc = socket_read(context->handle,context->rsp_buffer,context->content_size,tiny_timer_value(&timer));
         if (rc < 0) {
             log_error("content recv err.\r\n");
             goto err_handler;
@@ -362,7 +362,7 @@ err_handler:
     /*释放http 缓存*/
     HTTP_CLIENT_FREE(http_buffer);
     if (context->connected == true) {
-        socket_disconnect(context->handle);
+        socket_close(context->handle);
         context->connected = false;
     }
  

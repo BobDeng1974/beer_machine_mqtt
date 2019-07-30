@@ -3,7 +3,7 @@
 #include "net_task.h"
 
 
-extern osThreadId  report_task_handle;
+extern osThreadId  report_task_hdl;
 extern osMessageQId report_task_msg_q_id;
 void report_task(void const * argument);
 
@@ -22,6 +22,7 @@ void report_task(void const * argument);
 #define  REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR  0x1008
 #define  REPORT_TASK_MSG_REPORT_LOG                      0x1009
 #define  REPORT_TASK_MSG_REPORT_FAULT                    0x100a
+#define  REPORT_TASK_MSG_COMPRESSOR_RUN_TIME             0x100b
 
 #define  REPORT_TASK_0_RETRY_TIMEOUT                    (1 * 60 * 1000)
 #define  REPORT_TASK_1_RETRY_TIMEOUT                    (3 * 60 * 1000)
@@ -43,6 +44,7 @@ typedef struct
         base_information_t base_info;
         char sim_id[M6312_SIM_ID_STR_LEN];
         float temperature_float[4];
+        uint32_t run_time;/*运行时间，单位ms*/
     }content;
 }report_task_message_t;
 

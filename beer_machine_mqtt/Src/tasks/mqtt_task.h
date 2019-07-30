@@ -12,7 +12,7 @@
 MQTT_TASK_BEGIN
 
  /** 消息队列handle*/
-extern QueueHandle_t  mqtt_task_msg_hdl;
+extern osMessageQId  mqtt_task_msg_q_id;
 /**< 任务handle*/
 extern osThreadId  mqtt_task_hdl;       
 /**

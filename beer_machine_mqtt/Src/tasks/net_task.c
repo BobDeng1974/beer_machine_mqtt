@@ -256,7 +256,7 @@ void net_task(void const * argument)
                     /*告知mqtt任务网络就绪*/
                     mqtt_task_msg_t mqtt_msg;
                     mqtt_msg.head.id = MQTT_TASK_MSG_NET_READY;
-                    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
                     /*启动查询SIM ID*/
                     osSignalSet(net_task_hdl,NET_TASK_SIGNAL_QUERY_SIM_ID);
                 }

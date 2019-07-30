@@ -1,194 +1,232 @@
 #include "cmsis_os.h"
 #include "tasks_init.h"
 #include "stdio.h"
+#include "stdbool.h"
 #include "adc_task.h"
-#include "alarm_task.h"
 #include "compressor_task.h"
 #include "temperature_task.h"
-#include "display_task.h"
 #include "log.h"
 
-
-osThreadId   temperature_task_handle;
+/*任务句柄*/
+osThreadId   temperature_task_hdl;
+/*消息句柄*/
 osMessageQId temperature_task_msg_q_id;
 
 
-/*温度传感器型号：LAT5061G3839G B值：3839K*/
+/**/
 static int16_t const t_r_map[][2]={
-  {-12,12224},{-11,11577},{-10,10968},{-9,10394},{-8,9854},{-7,9344},{-6,8864},{-5,8410},{-4,7983},{-3 ,7579},
-  {-2 ,7199} ,{-1,6839}  ,{0,6499}   ,{1,6178 } ,{2,5875 },{3,5588 },{4,5317} ,{5,5060} ,{6,4817} ,{7,4587}  ,
-  {8,4370}   ,{9,4164}   ,{10,3969}  ,{11,3784} ,{12,3608},{13,3442},{14,3284},{15,3135},{16,2993},{17,2858} ,
-  {18,2730}  ,{19,2609}  ,{20,2494}  ,{21,2384} ,{22,2280},{23,2181},{24,2087},{25,1997},{26,1912},{27,1831} ,
-  {28,1754}  ,{29,1680}  ,{30,1610}  ,{31,1543} ,{32,1480},{33,1419},{34,1361},{35,1306},{36,1254},{37,1204} ,
-  {38,1156}  ,{39,1110}  ,{40,1067}  ,{41,1025} ,{42,985} ,{43,947} ,{44,911} ,{45,876} ,{46,843} ,{47,811}  ,
-  {48,781}   ,{49,752}   ,{50,724}   ,{51,697}  ,{52,672} ,{53,647} ,{54,624} ,{55,602} ,{56,580} ,{57,559}
+  {-22,21180},{-21,20010},{-20,18900},{-19,17870},{-18,16900},{-17,15980},{-16,15120},{-15,14310},{-14,13550},{-13,12830},
+  {-12,12160},{-11,11520},{-10,10920},{-9,10350} ,{-8,9820}  ,{-7,9316}  ,{-6,8841}  ,{-5,8392}  ,{-4,7968}  ,{-3 ,7568},
+  {-2 ,7190} ,{-1,6833}  ,{0,6495}   ,{1,6175 }  ,{2,5873 }  ,{3,5587 }  ,{4,5315}   ,{5,5060}   ,{6,4818}   ,{7,4589}  ,
+  {8,4372}   ,{9,4167}   ,{10,3972}  ,{11,3788}  ,{12,3613}  ,{13,3447}  ,{14,3290}  ,{15,3141}  ,{16,2999}  ,{17,2865} ,
+  {18,2737}  ,{19,2616}  ,{20,2501}  ,{21,2391}  ,{22,2287}  ,{23,2188}  ,{24,2094}  ,{25,2005}  ,{26,1919}  ,{27,1838} ,
+  {28,1761}  ,{29,1687}  ,{30,1617}  ,{31,1550}  ,{32,1486}  ,{33,1426}  ,{34,1368}  ,{35,1312}  ,{36,1259}  ,{37,1209} ,
+  {38,1161}  ,{39,1115}  ,{40,1071}  ,{41,1029}  ,{42,989}   ,{43,951}   ,{44,914}   ,{45,879}   ,{46,845}   ,{47,813}  ,
+  {48,783}   ,{49,753}   ,{50,725}   ,{51,698}   ,{52,672}   ,{53,647}   ,{54,624}   ,{55,601}   ,{56,579}   ,{57,559}  ,
+  {58,539}   ,{59,520}   ,{60,502}   ,{61,484}   ,{62,467}   ,{63,451}   ,{64,435}   ,{65,421}   ,{66,406}   ,{67,392}
 };
-#define  HIGH_ERR_R        11577
-#define  LOW_ERR_R         580
-#define  TR_MAP_IDX_MIN    0
-#define  TR_MAP_IDX_MAX    68
+
+#define  TR_MAP_IDX_MIN        2
+#define  TR_MAP_IDX_MAX        82
 
 typedef struct
 {
-  int8_t  value;
-  int8_t  dir;
-  bool    change;
+    float value_float;
+    int16_t value_int;
+    int8_t dir;
+    uint8_t err_cnt;
+    bool err;
+    bool change;
 }temperature_t;
 
-
+/*温度对象实体*/
 static temperature_t   temperature;
-               
-static uint32_t get_r(uint16_t adc)
+
+
+ /*
+ * @brief 获取温度传感器电阻值
+ * @param adc adc数值
+ * @return 电阻值
+ * @note
+ */             
+static uint32_t get_r(const uint16_t adc)
 {
-  float t_sensor_r;
-  t_sensor_r = (TEMPERATURE_SENSOR_SUPPLY_VOLTAGE*TEMPERATURE_SENSOR_ADC_VALUE_MAX*TEMPERATURE_SENSOR_BYPASS_RES_VALUE)/(adc*TEMPERATURE_SENSOR_REFERENCE_VOLTAGE)-TEMPERATURE_SENSOR_BYPASS_RES_VALUE;
-  return (uint32_t)t_sensor_r;
+    float t_sensor_r;
+    t_sensor_r = (TEMPERATURE_SENSOR_SUPPLY_VOLTAGE * TEMPERATURE_SENSOR_ADC_VALUE_MAX * TEMPERATURE_SENSOR_BYPASS_RES_VALUE)/(adc * TEMPERATURE_SENSOR_REFERENCE_VOLTAGE)-TEMPERATURE_SENSOR_BYPASS_RES_VALUE;
+    return (uint32_t)t_sensor_r;
 }
-/*获取浮点温度值*/
-static float get_fine_t(uint32_t r,uint8_t idx)
+
+ /*
+ * @brief 获取浮点温度值
+ * @param r 温度传感器电阻值
+ * @param idx 阻温映射表下标号
+ * @return 浮点温度值
+ * @note
+ */ 
+static float calcaulate_float_t(uint32_t r,uint8_t idx)
 {
-  uint32_t r1,r2;
+    uint32_t r1,r2;
 
-  float t;
+    float t;
 
-  r1 = t_r_map[idx][1];
-  r2 = t_r_map[idx + 1][1];
+    r1 = t_r_map[idx][1];
+    r2 = t_r_map[idx + 1][1];
 
-  t = t_r_map[idx][0] + (r1 - r) * 1.0 /(r1 - r2) + TEMPERATURE_COMPENSATION_VALUE;
+    t = t_r_map[idx][0] + (r1 - r) * 1.0 /(r1 - r2) + TEMPERATURE_COMPENSATION_VALUE;
   
-  log_debug("temperature: %.2f C.\r\n",t);
+    log_debug("temperature: %.2f C.\r\n",t);
    
-  return t;  
-}
-/*获取四舍五入整数温度值*/
-static int16_t get_approximate_t(float t_float)
-{
-  int16_t t = (int16_t)t_float;
-
-  t_float -= t;
-
-  if(t_float >= 0.5 ) {
-     t += 1; 
-  } else if (t_float <= -0.5){
-     t -= 1;
-  }
-  
-  return t;  
+    return t;  
 }
 
-
-
-
-int16_t get_t(uint16_t adc)
+/*
+* @brief 获取四舍五入整数温度值
+* @param t_float 浮点温度值
+* @return 整形四舍五入温度值
+* @note
+*/
+static int16_t calculate_approximate_t(float t_float)
 {
- uint32_t r; 
- uint8_t mid=0;
- int low = TR_MAP_IDX_MIN;  
- int high =TR_MAP_IDX_MAX; 
- 
- if(adc == ADC_TASK_ADC_ERR_VALUE){
- return TEMPERATURE_ERR_VALUE_SENSOR;
- }
- r=get_r(adc);
- 
- if(r <= LOW_ERR_R){
-    log_error("NTC 低过最高温度阻值！r=%d\r\n",r); 
-    return TEMPERATURE_ERR_VALUE_SENSOR;
- }else if(r >= HIGH_ERR_R){
-    log_error("NTC 高过最低温度阻值！r=%d\r\n",r); 
- return TEMPERATURE_ERR_VALUE_SENSOR;
- }
- 
- while (low <= high) {  
-    mid = (low + high) / 2;  
- if(r > t_r_map[mid][1]){
-    if(r <= t_r_map[mid-1][1]){
-       /*返回指定精度的温度*/
-       return get_approximate_t(get_fine_t(r, mid - 1));
-    }else{
-       high = mid - 1;  
+    int16_t t = (int16_t)t_float;
+
+    t_float -= t;
+
+    if(t_float >= 0.5 ) {
+        t += 1; 
+    } else if (t_float <= -0.5){
+        t -= 1;
     }
- }else{
-   if(r > t_r_map[mid+1][1]){
-     /*返回带有温度补偿值的温度*/
-     return get_approximate_t(get_fine_t(r, mid));
-   } else{
-      low = mid + 1;   
-   }
- }  
+  
+    return t;  
 }
 
- return TEMPERATURE_ERR_VALUE_SENSOR;
+/*
+* @brief 获取实际浮点
+* @param adc adc数值
+* @return 整形四舍五入温度值
+* @note
+*/
+float get_float_temperature_by_adc(uint16_t adc)
+{
+    uint32_t r; 
+    uint8_t mid;
+    int low = TR_MAP_IDX_MIN;  
+    int high =TR_MAP_IDX_MAX; 
+ 
+    if (adc >= ADC_ERR_MAX ||
+        adc <= ADC_ERR_MIN ){
+        log_error("传感器短路或者开路错误.\r\n");
+        return TEMPERATURE_ERR_VALUE;
+    }
+
+    r = get_r(adc);
+
+    if (r <= t_r_map[TR_MAP_IDX_MAX][1]){
+        log_error("NTC 小于最高温度阻值！r=%d\r\n",r); 
+        return TEMPERATURE_ERR_VALUE;
+    }else if (r >= t_r_map[TR_MAP_IDX_MIN][1]){
+        log_error("NTC 大于最低温度阻值！r=%d\r\n",r); 
+        return TEMPERATURE_ERR_VALUE;
+    }
+
+    while (low <= high) {  
+        mid = (low + high) / 2;  
+        if (r > t_r_map[mid][1]) {
+            if (r <= t_r_map[mid-1][1]){
+                /*返回指定精度的温度*/
+                return calcaulate_float_t(r, mid - 1);
+            } else {
+                high = mid - 1;  
+            }
+        } else {
+            if (r > t_r_map[mid+1][1]) {
+                /*返回带有温度补偿值的温度*/
+                return calcaulate_float_t(r, mid);
+            } else {
+                low = mid + 1;   
+            }
+        }  
+    }
+
+    return TEMPERATURE_ERR_VALUE;
 }
 
 
+/*
+* @brief 温度传感器任务
+* @param argument 任务参数
+* @return 
+* @note
+*/
 void temperature_task(void const *argument)
 {
-  uint16_t bypass_r_adc;
-  int16_t  t;
-  
-  osEvent  os_msg;
-  osStatus status;
-  temperature_task_msg_t msg;
+    temperature_task_message_t msg_recv;
+    compressor_task_message_t compressor_msg;
+    uint16_t bypass_r_adc;
+    int16_t t_int;
+    float t_float;
 
-  alarm_task_msg_t      alarm_msg;
-   
-  /*等待任务同步*/
-  /*
-  xEventGroupSync(tasks_sync_evt_group_hdl,TASKS_SYNC_EVENT_TEMPERATURE_TASK_RDY,TASKS_SYNC_EVENT_ALL_TASKS_RDY,osWaitForever);
-  log_debug("temperature task sync ok.\r\n");
-  */
-  temperature.value = 88;
+    temperature.value_int = 0;
+    temperature.value_float = 0.0;
 
-  while(1){
-  os_msg = osMessageGet(temperature_task_msg_q_id,TEMPERATURE_TASK_MSG_WAIT_TIMEOUT);
-  if(os_msg.status == osEventMessage){
-     msg = *(temperature_task_msg_t*)&os_msg.value.v;
- 
-     /*温度ADC转换完成消息处理*/
-     if(msg.type == TEMPERATURE_TASK_MSG_ADC_COMPLETED){
-        bypass_r_adc = msg.value;
-        t = get_t(bypass_r_adc);  
-        /*判断是否在报警范围*/ 
-       if(t == TEMPERATURE_ERR_VALUE_SENSOR || t > TEMPERATURE_ALARM_VALUE_MAX || t < TEMPERATURE_ALARM_VALUE_MIN){
-          t = ALARM_TASK_TEMPERATURE_ERR_VALUE;  
-        }     
-   
-       if( t == (uint8_t)temperature.value){
-          continue;  
-       } 
-       
-       if(t > temperature.value){
-          temperature.dir += 1;    
-       }else if(t < temperature.value){
-          temperature.dir -= 1;      
-       }
-       /*当满足条件时 接受数据变化*/
-       if(temperature.dir > TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT ||
-          temperature.dir < -TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT){
-          temperature.value = t;
-          temperature.change = true;
-       }
-       if(temperature.change == true){
+    while (1) {   
+        if (xQueueReceive(temperature_task_msg_q_id, &msg_recv,0xFFFFFFFF) == pdTRUE) {
+            /*温度ADC转换完成消息处理*/
+            if (msg_recv.head.id == TEMPERATURE_TASK_MSG_TYPE_ADC_VALUE) {
+                bypass_r_adc = msg_recv.content.adc;  
+                t_float = get_float_temperature_by_adc(bypass_r_adc);
+                /*判断是否在报警范围*/ 
+                if (t_float == TEMPERATURE_ERR_VALUE || (t_float > TEMPERATURE_ALARM_VALUE_MAX || t_float < TEMPERATURE_ALARM_VALUE_MIN)) {
+                    if (temperature.err == false) {  
+                        temperature.err_cnt ++; 
+                        if (temperature.err_cnt >= TEMPERATURE_ERR_CNT) {
+                            temperature.err = true;
+                            temperature.change = true;
+                        }
+                    }
+                } else {  
+                    t_int = calculate_approximate_t(t_float);
+                    /*温度由错误变为正常，需要发送温度变化消息*/
+                    if ( temperature.err == true) {
+                        temperature.err = false;
+                        temperature.err_cnt = 0;
+                        temperature.change = true;
+                    }
+                    /*温度精度*/
+                    if (t_float - temperature.value_float >= TEMPERATURE_ACCURATE) {
+                        temperature.dir += 1;    
+                    }else if(t_float - temperature.value_float <= -TEMPERATURE_ACCURATE) {
+                        temperature.dir -= 1;      
+                    } else {
+                        temperature.dir = 0; 
+                    }
+                    /*温度正常变化 当满足条件时 接受数据变化*/
+                    if (temperature.dir >= TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT ||
+                        temperature.dir <= -TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT){
+                        temperature.value_int = t_int;
+                        temperature.value_float = t_float;
+                        temperature.change = true;
+                    }
+                }
+            }
+    
+            if (temperature.change == true) {
          
-          if((uint8_t)temperature.value == ALARM_TASK_TEMPERATURE_ERR_VALUE){
-             log_error("temperature err.code:E1.\r\n");
-          }else{
-             log_info("teperature changed dir:%d value:%d C.\r\n",temperature.dir,temperature.value);
-          }
-          temperature.change = false;  
-          temperature.dir = 0;
-          
-          /*报警消息*/
-          alarm_msg.type = ALARM_TASK_MSG_TEMPERATURE;
-          alarm_msg.value = temperature.value;
+                if (temperature.err == true){
+                    /*压缩机温度错误消息*/
+                    compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_ERR;
+                    log_error("temperature err.\r\n");
+                }else{
+                    /*压缩机温度更新消息*/
+                    compressor_msg.head.type = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_UPDATE;
+                    compressor_msg.content.temperature_float = temperature.value_float;
+                    log_info("teperature change to:%.2f C.\r\n",temperature.value_float);
+                }
+                temperature.change = false;       
+                temperature.dir = 0;    
+                log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,TEMPERATURE_TASK_PUT_MSG_TIMEOUT) == pdPASS);
+            }
+        }
 
-          status = osMessagePut(alarm_task_msg_q_id,*(uint32_t*)&alarm_msg,TEMPERATURE_TASK_PUT_MSG_TIMEOUT);
-          if(status !=osOK){
-             log_error("put display t msg error:%d\r\n",status); 
-          } 
-       }
-     }
-   }
-  }
-  }
+    }
+}

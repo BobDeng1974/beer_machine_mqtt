@@ -56,7 +56,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */     
-#include "beer_machine.h"
+#include "board.h"
 #include "tasks_init.h"
 #include "adc_task.h"
 #include "temperature_task.h"
@@ -220,9 +220,9 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    cpu = osGetCPUUsage();
+    //cpu = osGetCPUUsage();
 
-    log_debug("cpu:%d.\r\n",cpu);
+    //log_debug("cpu:%d.\r\n",cpu);
     /*设置日志输出等级*/
     read = log_read(cmd_line,16);
     cmd_line[read] = 0;

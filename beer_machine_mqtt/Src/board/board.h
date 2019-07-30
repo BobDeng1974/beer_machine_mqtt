@@ -41,11 +41,11 @@ BSP_GSM_STATUS_PWR_OFF
 void bsp_board_init(void);
 
 /*压缩机控制*/
-void bsp_compressor_ctrl_on(void);
-void bsp_compressor_ctrl_off(void);
+void bsp_compressor_ctrl_pwr_on(void);
+void bsp_compressor_ctrl_pwr_off(void);
 /*蜂鸣器控制*/
-void bsp_buzzer_ctrl_on(void);
-void bsp_buzzer_ctrl_off(void);
+void bsp_buzzer_ctrl_pwr_on(void);
+void bsp_buzzer_ctrl_pwr_off(void);
 /*eeprom wp控制*/
 void bsp_eeprom_wp_ctrl_enable(void);
 void bsp_eeprom_wp_ctrl_disable(void);

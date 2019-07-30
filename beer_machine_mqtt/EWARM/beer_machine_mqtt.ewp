@@ -1097,7 +1097,7 @@
             <group>
                 <name>bsp</name>
                 <file>
-                    <name>$PROJ_DIR$\..\Src\board\beer_machine.c</name>
+                    <name>$PROJ_DIR$\..\Src\board\board.c</name>
                 </file>
             </group>
             <group>
@@ -1206,6 +1206,12 @@
                 </file>
             </group>
             <group>
+                <name>ntp</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\ntp\ntp.c</name>
+                </file>
+            </group>
+            <group>
                 <name>socket</name>
                 <file>
                     <name>$PROJ_DIR$\..\Src\socket\socket.c</name>
@@ -1213,6 +1219,9 @@
             </group>
             <group>
                 <name>tasks</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\adc_task.c</name>
+                </file>
                 <file>
                     <name>$PROJ_DIR$\..\Src\tasks\compressor_task.c</name>
                 </file>
@@ -1227,6 +1236,9 @@
                 </file>
                 <file>
                     <name>$PROJ_DIR$\..\Src\tasks\tasks_init.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\temperature_task.c</name>
                 </file>
             </group>
             <file>

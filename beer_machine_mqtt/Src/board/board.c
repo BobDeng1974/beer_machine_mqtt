@@ -20,7 +20,7 @@
 
 #include "spi.h"
 #include "main.h"
-#include "beer_machine.h"
+#include "board.h"
 
 void bsp_board_init(void)
 {
@@ -29,21 +29,21 @@ void bsp_board_init(void)
 
 
 /*压缩机控制*/
-void bsp_compressor_ctrl_on(void)
+void bsp_compressor_ctrl_pwr_on(void)
 {
     HAL_GPIO_WritePin(BSP_COMPRESSOR_CTRL_POS_GPIO_Port, BSP_COMPRESSOR_CTRL_POS_Pin, BSP_CTRL_COMPRESSOR_ON); 
 }
-void bsp_compressor_ctrl_off(void)
+void bsp_compressor_ctrl_pwr_off(void)
 {
     HAL_GPIO_WritePin(BSP_COMPRESSOR_CTRL_POS_GPIO_Port, BSP_COMPRESSOR_CTRL_POS_Pin, BSP_CTRL_COMPRESSOR_OFF); 
 }
 
 /*蜂鸣器控制*/
-void bsp_buzzer_ctrl_on(void)
+void bsp_buzzer_ctrl_pwr_on(void)
 {
     HAL_GPIO_WritePin(BSP_BUFFER_CTRL_POS_GPIO_Port, BSP_BUFFER_CTRL_POS_Pin, BSP_CTRL_BUZZER_ON); 
 }
-void bsp_buzzer_ctrl_off(void)
+void bsp_buzzer_ctrl_pwr_off(void)
 {
     HAL_GPIO_WritePin(BSP_BUFFER_CTRL_POS_GPIO_Port, BSP_BUFFER_CTRL_POS_Pin, BSP_CTRL_BUZZER_OFF); 
 }

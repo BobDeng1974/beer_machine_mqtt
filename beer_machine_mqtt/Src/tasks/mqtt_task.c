@@ -25,7 +25,7 @@
 #include "log.h"
 
  /** 消息队列handle*/
-QueueHandle_t  mqtt_task_msg_hdl;
+osMessageQId  mqtt_task_msg_q_id;
 /**< 任务句柄*/
 osThreadId  mqtt_task_hdl;       
 
@@ -33,17 +33,18 @@ osThreadId  mqtt_task_hdl;
 #define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/device/compressor/ctrl"
 #define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/device/compressor/rsp_ctrl"
 
-#define  DEFAULT_MQTT_HOST             "47.92.229.28"
+#define  DEFAULT_MQTT_HOST             "mqtt.mymlsoft.com"
 #define  DEFAULT_MQTT_PORT             1883
 #define  DEFAULT_CMD_TIMEOUT_MS        5000
 #define  DEFAULT_CONN_TIMEOUT_MS       5000
 #define  DEFAULT_MQTT_QOS              MQTT_QOS_0
 #define  DEFAULT_KEEP_ALIVE_SEC        60
 #define  DEFAULT_CLIENT_ID             "wkxboot_client"
+#define  DEFAULT_USER_NAME             "a24a642b4d1d473b"
+#define  DEFAULT_USER_PASSWD           "pwd"
 
 #define  HOST_SOCKET                   0
-#define  HOST_NAME                     "47.92.229.28"
-#define  HOST_PORT                     1883
+
 
 #define  MQTT_SEND_BUFFER_SIZE         200
 #define  MQTT_RECV_BUFFER_SIZE         200
@@ -120,7 +121,7 @@ static void mqtt_task_keep_alive_timer_callback(void const *argument)
 {
     mqtt_task_msg_t msg;
     msg.head.id = MQTT_TASK_MSG_KEEP_ALIVE;
-    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&msg,5) == pdPASS);
+    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&msg,5) == pdPASS);
 }
 #include "mqtt_config.h"
 #include "mqtt_client.h"
@@ -219,6 +220,8 @@ static int mqtt_task_contex_init(MQTTCtx *mqtt_ctx)
     mqtt_ctx->rx_buffer = recv_buffer;
     mqtt_ctx->rx_buffer_size = MQTT_RECV_BUFFER_SIZE;
     mqtt_ctx->use_tls = 0;
+    mqtt_ctx->username = DEFAULT_USER_NAME;
+    mqtt_ctx->password = DEFAULT_USER_PASSWD;
 
     log_info("MQTT Client: QoS %d, Use TLS %d\r\n",mqtt_ctx->qos,mqtt_ctx->use_tls);
     return 0;
@@ -469,13 +472,13 @@ void mqtt_task(void const * argument)
 
     while(1)
     {
-    if (xQueueReceive(mqtt_task_msg_hdl, &mqtt_msg_recv,0xFFFFFFFF) == pdTRUE) {
+    if (xQueueReceive(mqtt_task_msg_q_id, &mqtt_msg_recv,0xFFFFFFFF) == pdTRUE) {
         /*处理消息*/
-        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_NET_INIT) {
+        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_NET_READY) {
             mqtt_task_contex_init(&mqtt_context);
             /*发送连接信号*/
             mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
-            log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+            log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
         }
 
         /*处理建立连接*/
@@ -484,7 +487,7 @@ void mqtt_task(void const * argument)
                 rc = mqtt_task_connect(&mqtt_context);
                 if (rc != 0) {
                     mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
                 } else {
                     /*只要建立连接，准备心跳*/
                     if (mqtt_context.keep_alive_sec > 0) {
@@ -492,7 +495,7 @@ void mqtt_task(void const * argument)
                     }
                     mqtt_context.is_connected = 1;
                     mqtt_msg.head.id = MQTT_TASK_MSG_SUBSCRIBE;
-                    log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
                 }
             }
         }
@@ -507,7 +510,7 @@ void mqtt_task(void const * argument)
             mqtt_task_disconnect(&mqtt_context);
             mqtt_context.is_connected = 0;
             mqtt_msg.head.id = MQTT_TASK_MSG_NET_CONNECT;
-            log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+            log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             
         }
 
@@ -519,10 +522,10 @@ void mqtt_task(void const * argument)
             rc = mqtt_task_subscribe_topics(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);   
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);   
             } else {
                 mqtt_msg.head.id = MQTT_TASK_MSG_WAIT_MESSAGE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             }
         }
 
@@ -535,10 +538,10 @@ void mqtt_task(void const * argument)
             rc = mqtt_task_publish_topic(&mqtt_context,DEVICE_COMPRESSOR_CTRL_RSP_TOPIC,(uint8_t *)mqtt_msg_recv.content.value,mqtt_msg_recv.content.size);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             } else {
                 mqtt_msg.head.id = MQTT_TASK_MSG_WAIT_MESSAGE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             }
         }
 
@@ -552,10 +555,10 @@ void mqtt_task(void const * argument)
             rc = mqtt_task_wait_message(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             } else {
                 mqtt_msg.head.id = MQTT_TASK_MSG_WAIT_MESSAGE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             }
         }
 
@@ -567,7 +570,7 @@ void mqtt_task(void const * argument)
             rc = mqtt_task_keep_alive(&mqtt_context);
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_hdl,&mqtt_msg,5) == pdPASS);
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             } else {
                 /*再次开启心跳*/
                 mqtt_task_keep_alive_timer_start(mqtt_context.keep_alive_sec * (1000 / 2));

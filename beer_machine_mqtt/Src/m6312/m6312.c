@@ -14,7 +14,7 @@
 *                                                                            
 *                                                                            
 *****************************************************************************/
-#include "beer_machine.h"
+#include "board.h"
 #include "debug_assert.h"
 #include "tiny_timer.h"
 #include "xuart.h"
@@ -585,7 +585,8 @@ int m6312_get_all_base_info(base_information_t *base_info,uint8_t limit)
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);
     at_command_add_success_code(&command,0,1,"OK");
     at_command_add_fail_code(&command,-1,2,"+CME ERROR","ERROR");
-    at_command_set_value_prefix(&command,"+CCED:");
+    at_command_set_value_prefix_separator(&command,":");
+    at_command_set_value_prefix(&command,"+CCED");
     rc = at_command_execute(&command);
     /*判断执行结果*/
     if (rc == 0 && command.value_parse.cnt >= 6) {

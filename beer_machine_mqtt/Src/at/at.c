@@ -109,6 +109,23 @@ void at_command_add_fail_code(at_command_t *command,int code,uint8_t cnt,...)
 }
 
 /**
+* @brief AT指令设置回应值前缀分隔符
+* @details
+* @param command AT指令指针
+* @param prefix 值的前缀分隔符
+* @return 无
+* @attention
+* @note
+*/
+void at_command_set_value_prefix_separator(at_command_t *command,char *prefix_separator)
+{
+    log_assert_null_ptr(command);
+    log_assert_null_ptr(prefix_separator);
+
+    command->value_parse.prefix_separator = prefix_separator;
+}
+
+/**
 * @brief AT指令设置回应值前缀
 * @details
 * @param command AT指令指针
@@ -191,7 +208,7 @@ static void at_command_parse_value(at_command_t *command,char *token)
 
     /*需要解析值*/
     if (command->value_parse.prefix) {
-        prefix = strtok(token,VALUE_PREFIX_SEPARATOR);
+        prefix = strtok(token,command->value_parse.prefix_separator ? command->value_parse.prefix_separator : VALUE_PREFIX_SEPARATOR);
         if (prefix && strcmp(prefix,command->value_parse.prefix) == 0) {
             value = strtok(NULL,VALUE_SEPARATOR);
             while (value && command->value_parse.cnt < AT_VALUE_CNT_MAX) {

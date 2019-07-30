@@ -3,19 +3,18 @@
 
 
 /*啤酒机默认平台通信参数表*/
-#define  URL_LOG                                    "http://mh1597193030.uicp.cn:35787/device/log/submit"
-#define  URL_ACTIVE                                 "http://mh1597193030.uicp.cn:35787/device/info/active"
-#define  URL_FAULT                                  "http://mh1597193030.uicp.cn:35787/device/fault/submit"
-#define  URL_FAULT_DELETE                           "http://mh1597193030.uicp.cn:35787/device/fault/submit"
-#define  URL_UPGRADE                                "http://mh1597193030.uicp.cn:35787/device/info/getUpgradeInfo"
+#define  URL_LOG                                    "http://v2236p1176.imwork.net:22132/device/status"
+#define  URL_ACTIVE                                 "http://v2236p1176.imwork.net:22132/device/active"
+#define  URL_FAULT                                  "http://v2236p1176.imwork.net:22132/device/exception"
+#define  URL_FAULT_DELETE                           "http://v2236p1176.imwork.net:22132/device/exception/recover"
+#define  URL_UPGRADE                                "http://v2236p1176.imwork.net:22132/device/getUpgradeInfo"
 #define  BOUNDARY                                   "##wkxboot##"
-#define  KEY                                        "meiling-beer"
-#define  SOURCE                                     "coolbeer"
-#define  MODEL                                      "pijiuji"
-
+#define  KEY                                        "ML-freezer"
+#define  SOURCE                                     "ML-freezer"
+#define  MODEL                                      "冷柜"
+#define  SN_ADDR                                    0x803f800
 
 #define  SN_LEN                                     24 /**< SN字节长度*/
-#define  SIM_ID_LEN                                 24 /**< SIM ID字节长度*/
 
 #define  ENV_NAME_COMPRESSOR_CTRL                  "c_ctrl"
 #define  ENV_NAME_TEMPERATURE_COLD                 "t_cold"    

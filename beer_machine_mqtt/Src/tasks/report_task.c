@@ -16,7 +16,7 @@
 #include "log.h"
 
 
-osThreadId  report_task_handle;
+osThreadId  report_task_hdl;
 osMessageQId report_task_msg_q_id;
 
 osTimerId utc_timer_id;
@@ -32,7 +32,7 @@ uint32_t time_offset;
 typedef struct
 {
     char *url;
-    char *sn;
+    char sn[SN_LEN + 1];
     char *key;
     char *source;
     float temperature_cold;
@@ -48,14 +48,13 @@ typedef struct
     http_client_context_t http_client_context;
     char *url;
     char *key;
-    char *sn;
+    char sn[SN_LEN + 1];
     char *source;
     char *device_model;
     char *device_type;
     char *opt_code;
     char *vendor;
-    char device_sn[SN_LEN + 1];
-    char sim_id[SIM_ID_LEN + 1];
+    char sim_id[M6312_SIM_ID_STR_LEN + 1];
     char *fw_version;
     uint32_t fw_code;
     base_information_t base_info;
@@ -65,7 +64,7 @@ typedef struct
 {  
     http_client_context_t http_client_context;
     char *url;
-    char *sn;
+    char sn[SN_LEN + 1];
     char *key;
     char *source;
     uint32_t bin_size;
@@ -117,7 +116,7 @@ typedef struct
     http_client_context_t http_client_context;
     char *url_spawn;
     char *url_clear;
-    char *sn;
+    char sn[SN_LEN + 1];
     char *source;
     char *key;
     char *boundary;
@@ -126,6 +125,7 @@ typedef struct
     
 typedef struct
 {   
+    uint8_t is_temp_sensor_err;
     uint8_t is_device_active;
     uint32_t utc_time_offset;
     uint32_t fw_version_code;
@@ -453,7 +453,6 @@ err_exit:
  {
     int rc;
     uint32_t timestamp;
-    http_client_context_t context;
     char timestamp_str[14] = { 0 };
     char sign_str[33] = { 0 };
     char *req;
@@ -481,7 +480,7 @@ err_exit:
     http_client_ctx->is_form_data = false;
     http_client_ctx->content_type = "application/Json";
  
-    rc = http_client_post(&context);
+    rc = http_client_post(http_client_ctx);
     cJSON_free(req);
  
     if (rc != 0) {
@@ -501,9 +500,6 @@ err_exit:
 static int report_task_do_download(http_client_context_t *http_client_ctx,char *url,uint8_t *buffer,uint32_t start,uint16_t size)
 {
     int rc;
-
-    http_client_context_t context;
-
     http_client_ctx->range_size = size;
     http_client_ctx->range_start = start;
     http_client_ctx->rsp_buffer = (char *)buffer;
@@ -516,7 +512,7 @@ static int report_task_do_download(http_client_context_t *http_client_ctx,char *
     http_client_ctx->is_form_data = false;
     http_client_ctx->content_type = "application/Json"; 
   
-    rc = http_client_download(&context);
+    rc = http_client_download(http_client_ctx);
   
     if(rc != 0 ){
         log_error("download bin err.\r\n");
@@ -690,7 +686,6 @@ static int report_task_get_upgrade(http_client_context_t *http_client_ctx,device
 {
     int rc;
     uint32_t timestamp;
-    http_client_context_t context;
     char timestamp_str[14] = { 0 };
     char sign_str[33] = { 0 };
     char rsp[400] = { 0 };
@@ -715,7 +710,7 @@ static int report_task_get_upgrade(http_client_context_t *http_client_ctx,device
     http_client_ctx->is_form_data = false;
     http_client_ctx->content_type = "application/Json";
  
-    rc = http_client_get(&context);
+    rc = http_client_get(http_client_ctx);
  
     if (rc != 0) {
         log_error("get upgrade err.\r\n");  
@@ -862,8 +857,6 @@ static int report_task_do_report_fault(http_client_context_t *http_client_ctx,ch
 {
     int rc;
     uint32_t timestamp;
-    http_client_context_t context;
- 
     char timestamp_str[14] = { 0 };
     char sign_str[33] = { 0 };
     char req[320];
@@ -899,7 +892,7 @@ static int report_task_do_report_fault(http_client_context_t *http_client_ctx,ch
     http_client_ctx->is_form_data = true;
     http_client_ctx->content_type = "multipart/form-data; boundary=";
  
-    rc = http_client_post(&context);
+    rc = http_client_post(http_client_ctx);
  
     if (rc != 0) {
         log_error("report fault err.\r\n");  
@@ -952,7 +945,7 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
     cJSON *base_info_json;
 
     active_json = cJSON_CreateObject();
-    cJSON_AddStringToObject(active_json,"sn",active->device_sn);
+    cJSON_AddStringToObject(active_json,"sn",active->sn);
     cJSON_AddStringToObject(active_json,"deviceModel",active->device_model);
     cJSON_AddStringToObject(active_json,"softVersion",active->fw_version);
     cJSON_AddNumberToObject(active_json,"softCode",active->fw_code);
@@ -1040,7 +1033,6 @@ static int report_task_active_device(http_client_context_t *http_client_ctx,devi
 {
     int rc;
     uint32_t timestamp;
-    http_client_context_t context;
     char timestamp_str[14] = { 0 };
     char sign_str[33] = { 0 };
     char *req;
@@ -1069,7 +1061,7 @@ static int report_task_active_device(http_client_context_t *http_client_ctx,devi
     http_client_ctx->is_form_data = false;
     http_client_ctx->content_type = "application/Json";
  
-    rc = http_client_post(&context);
+    rc = http_client_post(http_client_ctx);
     cJSON_free(req);
  
     if (rc != 0) {
@@ -1138,13 +1130,57 @@ static int report_task_dispatch_device_config(device_config_t *config)
     compressor_task_message_t compressor_msg;;
 
     if (config->is_lock == 1) {
-        compressor_msg.head.id = COMPRESSOR_TASK_MSG_LOCK;
+        compressor_msg.head.id = COMPRESSOR_TASK_MSG_PWR_ON_DISABLE;
     } else {
-        compressor_msg.head.id = COMPRESSOR_TASK_MSG_UNLOCK;
+        compressor_msg.head.id = COMPRESSOR_TASK_MSG_PWR_ON_ENABLE;
     }
     log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
 
     return 0;
+}
+
+static void report_task_get_sn(char *sn)
+{
+    flash_if_read(SN_ADDR,(uint8_t *)sn,SN_LEN);
+    sn[SN_LEN] = 0;
+}
+
+#define  TYPE                   "freezer"
+#define  VENDOR                 "meiling"
+#define  OPT_CODE_CHINA_MOBILE  "china mobile"
+#define  OPT_CODE_CHINA_UNICOM  "china unicom"
+
+static void report_task_init()
+{
+    /*激活*/
+    report_task_context.active.device_model = MODEL;
+    report_task_context.active.device_type = TYPE;
+    report_task_get_sn(report_task_context.active.sn);
+    report_task_context.active.key = KEY;
+    report_task_context.active.source = SOURCE;
+    report_task_context.active.url = URL_ACTIVE;
+    report_task_context.active.vendor = VENDOR;
+    report_task_context.active.opt_code = OPT_CODE_CHINA_MOBILE;
+    report_task_context.active.fw_version = FIRMWARE_VERSION_STR;
+    report_task_context.active.fw_code = FIRMWARE_VERSION_HEX;
+    /*日志*/
+    report_task_context.log.key = KEY;
+    report_task_get_sn(report_task_context.log.sn);
+    report_task_context.log.source = SOURCE;
+    report_task_context.log.url = URL_LOG;
+    /*升级*/
+    report_task_context.upgrade.key = KEY;
+    report_task_get_sn(report_task_context.upgrade.sn);
+    report_task_context.upgrade.source = SOURCE;
+    report_task_context.log.url = URL_UPGRADE;
+    /*故障*/
+    report_task_context.fault.key = KEY;
+    report_task_get_sn(report_task_context.fault.sn);
+    report_task_context.fault.source = SOURCE;
+    report_task_context.fault.url_spawn = URL_FAULT;
+    report_task_context.fault.url_clear = URL_FAULT_DELETE;
+    report_task_context.fault.boundary = BOUNDARY;
+
 }
 
 /*上报任务*/
@@ -1165,6 +1201,7 @@ void report_task(void const *argument)
     report_task_upgrade_timer_init();
     report_task_download_timer_init();
 
+    report_task_init();
     device_env_init();
     report_task_device_config_init(&default_config);
 
@@ -1198,6 +1235,7 @@ void report_task(void const *argument)
                 log_info("report task sync utc ok.\r\n");
                 report_task_start_utc_timer(REPORT_TASK_SYNC_UTC_INTERVAL); 
                 /*开始设备激活*/
+                report_task_context.active.base_info = report_task_context.log.base_info;
                 msg_temp.head.id = REPORT_TASK_MSG_ACTIVE_DEVICE;
                 log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg_temp,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
             }
@@ -1220,11 +1258,10 @@ void report_task(void const *argument)
                 report_task_save_device_config(&report_task_context.config,&default_config);
                 /*打开启日志上报定时器*/
                 report_task_start_log_timer(report_task_context.config.log_interval);
-         
                 /*打开故障上报定时器*/
                 report_task_start_fault_timer(0);
                 /*激活后获取升级信息*/
-                report_task_start_upgrade_timer(0); 
+                //report_task_start_upgrade_timer(0); 
             }
         }
 
@@ -1269,15 +1306,24 @@ void report_task(void const *argument)
                 }
             }
         }
-          
+        /*压缩机工作时间消息*/
+        if (msg_recv.head.id == REPORT_TASK_MSG_COMPRESSOR_RUN_TIME) { 
+            report_task_context.log.compressor_run_time += msg_recv.content.run_time;
+        }
+
         /*温度消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_UPDATE) { 
             report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
             report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[1];
+            if (report_task_context.is_temp_sensor_err == 1) {
+                msg_temp.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR;
+                log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg_temp,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
+            }
         }
 
         /*温度传感器故障消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_SPAWM) {   
+            report_task_context.is_temp_sensor_err = 1;
             device_fault_information_t fault;
             report_task_context.log.temperature_cold = 0xFF;
             report_task_context.log.temperature_env = 0xFF;
@@ -1287,7 +1333,8 @@ void report_task(void const *argument)
         }
 
         /*温度传感器故障解除消息*/
-        if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR) {    
+        if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR) { 
+            report_task_context.is_temp_sensor_err = 0;   
             device_fault_information_t fault;
             report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
             report_task_context.log.temperature_env = msg_recv.content.temperature_float[0] + 10;
@@ -1306,6 +1353,7 @@ void report_task(void const *argument)
                     log_info("report log ok.\r\n");
                     /*重置日志上报定时器*/
                     report_task_start_log_timer(report_task_context.config.log_interval); 
+                    report_task_context.log.compressor_run_time = 0;/*清零压缩机运行时间，准备下次上报*/
                 } else {
                     retry ++;
                     log_error("report log err.\r\n");
