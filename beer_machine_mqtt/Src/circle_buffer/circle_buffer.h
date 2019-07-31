@@ -23,6 +23,15 @@ typedef struct
     uint32_t   size;
 }circle_buffer_t;
 
+/**
+* @brief 循环缓存初始化
+* @param cb 循环缓存指针
+* @param buffer 数据缓存地址
+* @param size 数据缓存大小
+* @return 无
+* @note 
+*/
+void circle_buffer_init(circle_buffer_t *cb,uint8_t *buffer,uint32_t size);
 
 /*
 * @brief 循环缓存刷新
@@ -40,14 +49,6 @@ uint32_t circle_buffer_flush(circle_buffer_t *cb);
 * @note
 */
 uint32_t circle_buffer_size(circle_buffer_t *cb);
-
-/*
-* @brief 循环缓存已使用容量
-* @param cb 循环缓存指针
-* @return 循环缓存已使用容量
-* @note
-*/
-uint32_t circle_buffer_used_size(circle_buffer_t *cb);
 
 /*
 * @brief 循环缓存是否已满

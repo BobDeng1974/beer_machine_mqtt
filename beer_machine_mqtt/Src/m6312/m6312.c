@@ -40,7 +40,7 @@ static uint8_t send_buffer[M6312_SEND_BUFFER_SIZE];/**< m6312串口发送缓存*
 
 #define  M6312_RESPONSE_TIMEOUT                            20000 /**< m6312模块回应超时时间*/
 #define  M6312_RESPONSE_BUFFER_SIZE                        500   /**< m6312模块回应缓存大小*/
-#define  M6312_REQUEST_BUFFER_SIZE                         200   /**< m6312模块请求缓存大小*/
+#define  M6312_REQUEST_BUFFER_SIZE                         500   /**< m6312模块请求缓存大小*/
 #define  M6312_RESPONSE_LINE_CNT_MAX                       10    /**< m6312模块回应行的最大数量*/
 #define  M6312_RESPONSE_VALUE_CNT_MAX_PER_LINE             10    /**< m6312模块回应值每行最大数量*/
 /**
@@ -594,7 +594,7 @@ int m6312_get_all_base_info(base_information_t *base_info,uint8_t limit)
             cnt ++;
             strcpy(base_info->base[i].lac,command.value_parse.value[2 + i * 6]);
             strcpy(base_info->base[i].cid,command.value_parse.value[3 + i * 6]);
-            strcpy(base_info->base[i].cid,command.value_parse.value[5 + i * 6]);
+            strcpy(base_info->base[i].rssi,command.value_parse.value[5 + i * 6]);
         }
         base_info->cnt = cnt;
         log_debug("m6312查询所有基站信息成功.\r\n");

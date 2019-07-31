@@ -16,7 +16,12 @@
 *****************************************************************************************/
 #include "socket.h"
 #include "tiny_timer.h"
+#include "circle_buffer.h"
 #include "log.h"
+
+#define  SOCKET_RECV_BUFFER_SIZE  1024
+#define  SOCKET_RECV_BUFFER_CNT   2
+#define  SOCKET_ID_CNT            2
 
 
  /** socket互斥量结构*/
@@ -25,18 +30,28 @@ typedef struct
     osMutexId mutex;
 }socket_mutex_t;
 
+typedef struct
+{
+    int value;
+    uint8_t buffer[SOCKET_RECV_BUFFER_SIZE];
+    circle_buffer_t circle_buffer;
+    uint8_t is_free;
+}socket_id_t;
+
+typedef struct
+{
+    socket_id_t id[SOCKET_ID_CNT];
+    uint8_t free;
+}socket_id_pool_t;
+
  /** socket管理器结构*/
 typedef struct
 {
-    struct
-    {
-        int value;
-        uint8_t is_free;
-    }id[SOCKET_ID_MAX];
-    uint8_t free;
     /** socket互斥量*/
     socket_mutex_t socket_mutex;
+    socket_id_pool_t id_pool;
 }socket_manage_t;
+
  /** socket管理器*/
 static socket_manage_t socket_manage;
 
@@ -66,22 +81,32 @@ static void socket_mutex_unlock(socket_mutex_t *socket_mutex)
     osMutexRelease(socket_mutex->mutex);
 }
 
-static int socket_alloc_socket_id(void)
+static circle_buffer_t *socket_get_circle_buffer(int handle)
 {
-    int index;
+    for (uint8_t i = 0;i < SOCKET_RECV_BUFFER_CNT;i ++) {
+        if (socket_manage.id_pool.id[i].value == handle && \
+            socket_manage.id_pool.id[i].is_free == 0) {
+            return &socket_manage.id_pool.id[i].circle_buffer;
+        }
+    }
+
+    log_assert_bool_false(0);
+    return NULL;
+}
+
+
+static int socket_alloc_id(void)
+{
     int id = -1;
 
     socket_mutex_lock(&socket_manage.socket_mutex);
 
-    if (socket_manage.free == 0) {
-        goto exit;
-    }
-
-    for (index = 0;index < SOCKET_ID_MAX;index ++) {
-        if (socket_manage.id[index].is_free == 1) {
-            socket_manage.id[index].is_free = 0;
-            socket_manage.free --;
-            id = socket_manage.id[index].value;
+    for (uint8_t i = 0;i < SOCKET_ID_MAX;i ++) {
+        if (socket_manage.id_pool.id[i].is_free == 1) {
+            socket_manage.id_pool.id[i].is_free = 0;
+            socket_manage.id_pool.free -= 1;
+            id = socket_manage.id_pool.id[i].value;
+            circle_buffer_init(&socket_manage.id_pool.id[i].circle_buffer,socket_manage.id_pool.id[i].buffer,SOCKET_RECV_BUFFER_SIZE);
             goto exit;
         }
     }
@@ -91,19 +116,17 @@ exit:
     return id;
 }
 
-static int socket_free_socket_id(int id)
+static int socket_free_id(int id)
 {
     int rc = -1;
     int index;
 
-    log_assert_bool_false(socket_manage.free > 0);
-
     socket_mutex_lock(&socket_manage.socket_mutex);
 
     for (index = 0;index < SOCKET_ID_MAX;index ++) {
-        if (socket_manage.id[index].value == id && socket_manage.id[index].is_free == 0) {
-            socket_manage.id[index].is_free = 1;   
-            socket_manage.free ++;
+        if (socket_manage.id_pool.id[index].value == id && socket_manage.id_pool.id[index].is_free == 0) {
+            socket_manage.id_pool.id[index].is_free = 1;   
+            socket_manage.id_pool.free ++;
             rc = 0;
             goto exit;
         }
@@ -114,6 +137,46 @@ exit:
 }
 
 
+static int socket_hal_read(int handle,uint8_t *buffer,uint32_t size)
+{
+    int rc;
+
+    rc = m6312_recv(handle,buffer,size);
+    return rc;
+}
+
+static int socket_recv_buffer_read(int handle,char *buffer,uint32_t size,uint32_t timeout)
+{
+    int rc;
+    circle_buffer_t *circle_buffer;
+    uint32_t read_size,read_size_total = 0,read_size_remain = size;
+    static uint8_t temp_buffer[SOCKET_RECV_BUFFER_SIZE];
+    tiny_timer_t timer;
+
+    tiny_timer_init(&timer,0,timeout);
+    circle_buffer = socket_get_circle_buffer(handle);
+
+    while (tiny_timer_value(&timer) > 0 && read_size_remain > 0) {
+        read_size = circle_buffer_read(circle_buffer,buffer + read_size_total,read_size_remain);
+        read_size_remain -= read_size;
+        read_size_total += read_size;
+        /*接收缓存是空的，就从模块的缓存读取数据，尝试读满*/
+        if (circle_buffer_is_empty(circle_buffer)) {
+            rc = socket_hal_read(handle,temp_buffer,SOCKET_RECV_BUFFER_SIZE);
+            if (rc < 0) {
+                return -1;
+            }
+            if (rc == 0) {
+                osDelay(500);
+            } else {
+                circle_buffer_write(circle_buffer,(const char *)temp_buffer,rc);
+                osDelay(100);
+            }
+        
+        }
+    }
+    return read_size_total;
+}
 /**
 * @brief socket环境初始化
 * @details
@@ -126,10 +189,10 @@ int socket_init(void)
 {
     socket_mutex_init(&socket_manage.socket_mutex);
     for (int i = 0;i < SOCKET_ID_MAX;i ++) {
-        socket_manage.id[i].value = i;
-        socket_manage.id[i].is_free = 1;
+        socket_manage.id_pool.id[i].value = i;
+        socket_manage.id_pool.id[i].is_free = 1;
     }
-    socket_manage.free =  SOCKET_ID_MAX;
+    socket_manage.id_pool.free =  SOCKET_ID_MAX;
     return 0;
 }
 /**
@@ -148,7 +211,7 @@ int socket_open(char *host,const uint16_t port,socket_protocol_t protocol)
     int handle;
     char port_str[6];
 
-    handle = socket_alloc_socket_id();
+    handle = socket_alloc_id();
     if (handle < 0) {
         log_error("alloc socket id err.\r\n");
         return SOCKET_ERR_INTERNAL;
@@ -162,7 +225,7 @@ int socket_open(char *host,const uint16_t port,socket_protocol_t protocol)
     if (rc == 0) {
         return handle;
     }
-    socket_free_socket_id(handle);
+    socket_free_id(handle);
     return SOCKET_ERR_NETWORK;
 }
 
@@ -178,7 +241,7 @@ int socket_close(const int handle)
 {
     int rc ;
     
-    socket_free_socket_id(handle);
+    socket_free_id(handle);
     rc = m6312_close(handle);
     if (rc == 0) {
         return SOCKET_ERR_OK;
@@ -230,31 +293,17 @@ int socket_write(const int handle,const char *buffer,int size,uint32_t timeout)
 */
 int socket_read(const int handle,char *buffer,int size,uint32_t timeout)
 {
-    int read_total = 0,read;
-
-    tiny_timer_t timer;
-
-    tiny_timer_init(&timer,0,timeout);
-    while (tiny_timer_value(&timer) > 0 && read_total < size) {
-        read = m6312_recv(handle,(uint8_t *)buffer + read_total,size - read_total);
-        if (read < 0) {
-            return SOCKET_ERR_NETWORK;
-        }
-        read_total += read;
-        if (read == 0) {
-            osDelay(500);
-        } else {
-            osDelay(100);
-        }
+    int read;
+    
+    read = socket_recv_buffer_read(handle,buffer,size,timeout);
+    
+    if (read < 0 || read != size) {
+        return SOCKET_ERR_NETWORK;
     }
-    if (read_total == 0) {
+    if (read == 0) {
         return SOCKET_ERR_TIMEOUT;
     }
 
-    if (read_total != size) {
-        return SOCKET_ERR_NETWORK;
-    }
-
-    return read_total;
+    return read;
 }
 

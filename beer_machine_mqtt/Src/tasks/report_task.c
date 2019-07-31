@@ -125,6 +125,7 @@ typedef struct
     
 typedef struct
 {   
+    uint8_t is_start_sync_utc;
     uint8_t is_temp_sensor_err;
     uint8_t is_device_active;
     uint32_t utc_time_offset;
@@ -487,6 +488,7 @@ err_exit:
         log_error("report log err.\r\n");  
         return -1;
     }
+    log_debug("log rsp:\r\n%s",http_client_ctx->rsp_buffer);
     rc = report_task_parse_log_rsp_json(http_client_ctx->rsp_buffer);
     if (rc != 0) {
         log_error("json parse log rsp error.\r\n");  
@@ -716,7 +718,7 @@ static int report_task_get_upgrade(http_client_context_t *http_client_ctx,device
         log_error("get upgrade err.\r\n");  
         return -1;
     }
- 
+    log_debug("upgrade rsp:%s\r\n",http_client_ctx->rsp_buffer);
     rc = report_task_parse_upgrade_rsp_json_str(http_client_ctx->rsp_buffer,upgrade);
     if (rc != 0) {
         log_error("json parse upgrade rsp error.\r\n");  
@@ -898,6 +900,7 @@ static int report_task_do_report_fault(http_client_context_t *http_client_ctx,ch
         log_error("report fault err.\r\n");  
         return -1;
     }
+    log_debug("fault rsp:%s\r\n",http_client_ctx->rsp_buffer);
     rc = report_task_parse_fault_rsp_json(http_client_ctx->rsp_buffer);
     if (rc != 0) {
         log_error("json parse fault rsp error.\r\n");  
@@ -1068,7 +1071,7 @@ static int report_task_active_device(http_client_context_t *http_client_ctx,devi
         log_error("report active err.\r\n");  
         return -1;
     }
- 
+    log_debug("active rsp:%s\r\n",http_client_ctx->rsp_buffer);
     rc = report_task_parse_active_rsp_json_str(http_client_ctx->rsp_buffer,config);
     if (rc != 0) {
         log_error("json parse active rsp error.\r\n");  
@@ -1220,7 +1223,10 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_BASE_INFO) {
             report_task_context.log.base_info = msg_recv.content.base_info;
             /*开始同步时间*/
-            report_task_start_utc_timer(0); 
+            if (report_task_context.is_start_sync_utc == 0) {
+                report_task_start_utc_timer(0); 
+                report_task_context.is_start_sync_utc = 1;
+            }
         }
 
         /*处理同步UTC消息*/

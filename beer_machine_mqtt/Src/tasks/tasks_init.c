@@ -36,7 +36,7 @@ int tasks_init(void)
     compressor_task_msg_q_id = xQueueCreate(6,sizeof(compressor_task_message_t));
     log_assert_null_ptr(compressor_task_msg_q_id);
 
-    osThreadDef(report_task, report_task, osPriorityNormal,0,800);
+    osThreadDef(report_task, report_task, osPriorityNormal,0,1000);
     report_task_hdl = osThreadCreate(osThread(report_task), NULL);
     log_assert_null_ptr(report_task_hdl);
     /*
