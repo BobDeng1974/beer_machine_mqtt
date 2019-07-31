@@ -26,9 +26,6 @@ osTimerId fault_timer_id;
 osTimerId upgrade_timer_id;
 osTimerId download_timer_id;
 
-
-uint32_t time_offset;
-
 typedef struct
 {
     char *url;
@@ -322,7 +319,7 @@ static int report_task_sync_utc(uint32_t *offset)
 /** 获取同步后的本地UTC*/
 static uint32_t report_task_get_utc()
 {
-    return osKernelSysTick() / 1000 + time_offset;
+    return osKernelSysTick() / 1000 + report_task_context.utc_time_offset;
 }
 
 /** 字节转换成HEX字符串*/
