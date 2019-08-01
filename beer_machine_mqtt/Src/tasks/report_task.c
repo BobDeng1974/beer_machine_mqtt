@@ -25,6 +25,7 @@ osTimerId log_timer_id;
 osTimerId fault_timer_id;
 osTimerId upgrade_timer_id;
 osTimerId download_timer_id;
+osTimerId loop_config_timer_id;
 
 typedef struct
 {
@@ -32,13 +33,22 @@ typedef struct
     char sn[SN_LEN + 1];
     char *key;
     char *source;
-    float temperature_cold;
-    float temperature_freeze;
+    float temperature_cold_min;
+    float temperature_freeze_min;
     float temperature_env;
     uint32_t compressor_run_time;
     uint8_t compressor_is_pwr_on;
     base_information_t base_info;
 }device_log_t;
+
+typedef struct
+{
+    http_client_context_t http_client_context;
+    char *url;
+    char *key;
+    char sn[SN_LEN + 1];
+    char *source;    
+}device_loop_config_t;
 
 typedef struct
 {
@@ -78,11 +88,14 @@ typedef struct
 /** 设备运行配置信息表*/
 typedef struct
 {
-    http_client_context_t http_client_context;
-    char *url;
     uint32_t log_interval;
-    float temperature_cold;
-    float temperature_freeze;
+    uint32_t loop_interval;
+    float temperature_cold_min;
+    float temperature_cold_max;
+    float temperature_cold_offset;
+    float temperature_freeze_min;
+    float temperature_freeze_max;
+    float temperature_freeze_offset;
     int is_lock;
     int is_new;
 }device_config_t;
@@ -129,6 +142,7 @@ typedef struct
     uint32_t fw_version_code;
 
     device_config_t config;
+    device_loop_config_t loop_config;
     device_active_t active;
     device_upgrade_t upgrade;
     device_log_t log;
@@ -145,6 +159,7 @@ static void report_task_log_timer_expired(void const *argument);
 static void report_task_fault_timer_expired(void const *argument);
 static void report_task_utc_timer_expired(void const *argument);
 static void report_task_upgrade_timer_expired(void const *argument);
+static void report_task_loop_config_timer_expired(void const *argument);
 static void report_task_download_timer_expired(void const *argument);
 
 /*同步utc定时器*/
@@ -186,6 +201,27 @@ static void report_task_active_timer_expired(void const *argument)
     report_task_message_t msg;
 
     msg.head.id = REPORT_TASK_MSG_ACTIVE_DEVICE;
+    log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
+}
+
+/*轮询配置信息的定时器*/
+static void report_task_loop_config_timer_init()
+{
+    osTimerDef(loop_config_timer,report_task_loop_config_timer_expired);
+    loop_config_timer_id = osTimerCreate(osTimer(loop_config_timer),osTimerOnce,NULL);
+    log_assert_null_ptr(loop_config_timer_id);
+}
+
+static void report_task_start_loop_config_timer(uint32_t timeout)
+{
+    osTimerStart(loop_config_timer_id,timeout);  
+}
+
+static void report_task_loop_config_timer_expired(void const *argument)
+{
+    report_task_message_t msg;
+
+    msg.head.id = REPORT_TASK_MSG_LOOP_CONFIG;
     log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
 }
 
@@ -394,8 +430,8 @@ static char *report_task_build_log_json_str(device_log_t *log)
     log_json = cJSON_CreateObject();
     cJSON_AddStringToObject(log_json,"sn",log->sn);
     cJSON_AddNumberToObject(log_json,"ambTemp",log->temperature_env);
-    cJSON_AddNumberToObject(log_json,"refTemp",log->temperature_cold);
-    cJSON_AddNumberToObject(log_json,"frzTemp",log->temperature_freeze);
+    cJSON_AddNumberToObject(log_json,"refTemp",log->temperature_cold_min);
+    cJSON_AddNumberToObject(log_json,"frzTemp",log->temperature_freeze_min);
     cJSON_AddNumberToObject(log_json,"comState",log->compressor_is_pwr_on);
     cJSON_AddNumberToObject(log_json,"runTime",log->compressor_run_time);
 
@@ -935,14 +971,181 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
     return 0;
 }
 
+ /*构造轮询配置信息数据json*/
+ static char *report_task_build_loop_config_json_str(device_loop_config_t *loop_config)
+ {
+    char *json_str;
+    cJSON *loop_config_json;
+
+    loop_config_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(loop_config_json,"sn",loop_config->sn);
+ 
+    json_str = cJSON_PrintUnformatted(loop_config_json);
+    cJSON_Delete(loop_config_json);
+    return json_str;
+ }
+
+
+
+/*解析轮询配置返回的信息数据json*/
+static int report_task_parse_loop_config_rsp_json_str(char *json_str ,device_config_t *config)
+{
+    int rc = -1;
+    cJSON *active_rsp_json;
+    cJSON *temp;
+  
+    log_debug("parse loop config rsp.\r\n");
+    active_rsp_json = cJSON_Parse(json_str);
+    if (active_rsp_json == NULL) {
+        log_error("rsp is not json.\r\n");
+        return -1;  
+    }
+    /*检查code值 200成功*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"code");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("code is not num.\r\n");
+        goto err_exit;  
+    }
+               
+    log_debug("code:%d\r\n", temp->valueint);
+    if (temp->valueint != 200 ) {
+        log_error("active rsp err code:%d.\r\n",temp->valueint); 
+        goto err_exit;  
+    }  
+     /*检查data*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"data");
+    if (!cJSON_IsObject(temp)) {
+        log_error("data is null.\r\n");
+        rc = 0;
+        goto err_exit;  
+    }
+     /*检查runConfig*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"runConfig");
+    if (!cJSON_IsObject(temp)) {
+        log_error("runConfig is null.\r\n");
+        rc = 0;
+        goto err_exit;  
+    }
+    /*检查safeTemp*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMin");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("safeTempMin is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_cold_min = temp->valuedouble;
+
+    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMax");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("safeTempMax is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_cold_max = temp->valuedouble;
+    /*检查freezingTemp*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMin");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("freezingTempMin is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_freeze_min = temp->valuedouble;
+
+    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMax");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("freezingTempMax is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_freeze_max = temp->valuedouble;
+  
+    /*检查powerState*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"powerState");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("powerState is not num.\r\n");
+        goto err_exit;  
+    }
+    config->is_lock = temp->valueint == 0 ? 1 : 0;
+    /*检查日志间隔*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"logInterval");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("logInterval is not num.\r\n");
+        goto err_exit;  
+    }
+    config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
+    /*检查轮询配置间隔*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"loopConfInterval");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("logInterval is not num.\r\n");
+        goto err_exit;  
+    }
+    config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
+    rc = 0;
+    log_info("loop config rsp [lock:%d t_cold_min:%d ~ %d.t_freeze_min:%d ~ %d.log:%d loop:%d\r\n",
+             config->is_lock,config->temperature_cold_min,config->temperature_cold_max,
+             config->temperature_freeze_min,config->temperature_freeze_max,config->log_interval,
+             config->loop_interval);
+  
+err_exit:
+    cJSON_Delete(active_rsp_json);
+    return rc;
+}
+
+/*执行轮询配置信息*/  
+static int report_task_loop_config(http_client_context_t *http_client_ctx,device_loop_config_t *loop_config,device_config_t *config)
+{
+    int rc;
+    uint32_t timestamp;
+    char timestamp_str[14] = { 0 };
+    char sign_str[33] = { 0 };
+    char *req;
+    char rsp[400] = { 0 };
+    char url[200] = { 0 };
+
+    /*计算时间戳字符串*/
+    timestamp = report_task_get_utc();
+    snprintf(timestamp_str,14,"%d",timestamp);
+    /*计算sign*/
+    report_task_build_sign(sign_str,4,loop_config->key,loop_config->sn,loop_config->source,timestamp_str);
+    /*构建新的url*/
+    report_task_build_url(url,200,loop_config->url,loop_config->sn,sign_str,loop_config->source,timestamp_str);  
+   
+    req = report_task_build_loop_config_json_str(loop_config);
+ 
+    http_client_ctx->range_size = 200;
+    http_client_ctx->range_start = 0;
+    http_client_ctx->rsp_buffer = rsp;
+    http_client_ctx->rsp_buffer_size = 400;
+    http_client_ctx->url = url;
+    http_client_ctx->timeout = 10000;
+    http_client_ctx->user_data = (char *)req;
+    http_client_ctx->user_data_size = strlen(req);
+    http_client_ctx->boundary = BOUNDARY;
+    http_client_ctx->is_form_data = false;
+    http_client_ctx->content_type = "application/Json";
+ 
+    rc = http_client_post(http_client_ctx);
+    cJSON_free(req);
+ 
+    if (rc != 0) {
+        log_error("loop config err.\r\n");  
+        return -1;
+    }
+    log_debug("loop config rsp:%s\r\n",http_client_ctx->rsp_buffer);
+    rc = report_task_parse_loop_config_rsp_json_str(http_client_ctx->rsp_buffer,config);
+    if (rc != 0) {
+        log_error("json parse loop config rsp error.\r\n");  
+        return -1;
+    }
+    log_debug("report loop config ok.\r\n");  
+    return 0;
+ }
+
+
 
  /*构造激活信息数据json*/
  static char *report_task_build_active_json_str(device_active_t *active)
  {
     char *json_str;
     cJSON *active_json;
-    cJSON *base_info_array_json;
-    cJSON *base_info_json;
+    //cJSON *base_info_array_json;
+    //cJSON *base_info_json;
 
     active_json = cJSON_CreateObject();
     cJSON_AddStringToObject(active_json,"sn",active->sn);
@@ -955,6 +1158,7 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
     cJSON_AddStringToObject(active_json,"vendor",active->vendor);
 
     /*base info数组*/
+    /*
     cJSON_AddItemToObject(active_json,"baseInfo",base_info_array_json = cJSON_CreateArray());
 
     for (uint8_t i = 0;i < active->base_info.cnt;i ++) {
@@ -963,7 +1167,7 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
         cJSON_AddStringToObject(base_info_json,"cid",active->base_info.base[i].cid);
         cJSON_AddStringToObject(base_info_json,"rssi",active->base_info.base[i].rssi);
     }
-
+    */
     json_str = cJSON_PrintUnformatted(active_json);
     cJSON_Delete(active_json);
     return json_str;
@@ -996,30 +1200,75 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
         log_error("active rsp err code:%d.\r\n",temp->valueint); 
         goto err_exit;  
     }  
- 
-    /*检查safeTemp*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"safeTemp");
-    if (!cJSON_IsBool(temp) || !cJSON_IsTrue(temp)) {
-        log_error("safeTemp is not bool or is not true.\r\n");
-        goto err_exit;  
-    }
-    log_debug("safeTemp:%s\r\n",temp->valueint ? "true" : "false"); 
-  
-    /*检查freezingTemp */
-    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTemp");
+     /*检查data*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"data");
     if (!cJSON_IsObject(temp)) {
-        log_error("freezingTemp is not obj.\r\n");
+        log_error("data is null.\r\n");
+        rc = 0;
         goto err_exit;  
     }
+     /*检查runConfig*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"runConfig");
+    if (!cJSON_IsObject(temp)) {
+        log_error("runConfig is null.\r\n");
+        rc = 0;
+        goto err_exit;  
+    }
+    /*检查safeTemp*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMin");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("safeTempMin is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_cold_min = temp->valuedouble;
+
+    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMax");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("safeTempMax is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_cold_max = temp->valuedouble;
+    /*检查freezingTemp*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMin");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("freezingTempMin is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_freeze_min = temp->valuedouble;
+
+    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMax");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("freezingTempMax is not num.\r\n");
+        goto err_exit;  
+    }
+    config->temperature_freeze_max = temp->valuedouble;
+  
     /*检查powerState*/
     temp = cJSON_GetObjectItem(active_rsp_json,"powerState");
     if (!cJSON_IsNumber(temp)) {
         log_error("powerState is not num.\r\n");
         goto err_exit;  
     }
-    config->is_lock = temp->valueint;
+    config->is_lock = temp->valueint == 0 ? 1 : 0;
+    /*检查日志间隔*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"logInterval");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("logInterval is not num.\r\n");
+        goto err_exit;  
+    }
+    config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
+    /*检查轮询配置间隔*/
+    temp = cJSON_GetObjectItem(active_rsp_json,"loopConfInterval");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("logInterval is not num.\r\n");
+        goto err_exit;  
+    }
+    config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
     rc = 0;
-    log_info("active rsp [lock:%d t_safe:%d t_freeze:%d.\r\n",config->is_lock,config->temperature_cold,config->temperature_freeze);
+    log_info("active rsp [lock:%d t_cold_min:%d ~ %d.t_freeze_min:%d ~ %d.log:%d loop:%d\r\n",
+             config->is_lock,config->temperature_cold_min,config->temperature_cold_max,
+             config->temperature_freeze_min,config->temperature_freeze_max,config->log_interval,
+             config->loop_interval);
   
 err_exit:
     cJSON_Delete(active_rsp_json);
@@ -1084,21 +1333,33 @@ static void report_task_device_config_init(device_config_t *config)
 {
     char *temp;
 
-    temp = device_env_get(ENV_NAME_TEMPERATURE_COLD);
+    temp = device_env_get(ENV_NAME_TEMPERATURE_COLD_MIN);
     if (temp) {
-        report_task_context.config.temperature_cold = atoi(temp);
+        config->temperature_cold_min = atoi(temp);
     }
-    temp = device_env_get(ENV_NAME_TEMPERATURE_FREEZE);
+
+    temp = device_env_get(ENV_NAME_TEMPERATURE_COLD_MAX);
     if (temp) {
-        report_task_context.config.temperature_freeze = atoi(temp);
+        config->temperature_cold_max = atoi(temp);
     }
+
+    temp = device_env_get(ENV_NAME_TEMPERATURE_FREEZE_MIN);
+    if (temp) {
+        config->temperature_freeze_min = atoi(temp);
+    }
+
+    temp = device_env_get(ENV_NAME_TEMPERATURE_FREEZE_MAX);
+    if (temp) {
+        config->temperature_freeze_max = atoi(temp);
+    }
+
     temp = device_env_get(ENV_NAME_COMPRESSOR_CTRL);
     if (temp) {
-        report_task_context.config.is_lock = atoi(temp);
+        config->is_lock = atoi(temp);
     }
     temp = device_env_get(ENV_NAME_LOG_INTERVAL);
     if (temp) {
-        report_task_context.config.log_interval = atoi(temp);
+        config->log_interval = atoi(temp);
     }
 
 }
@@ -1108,17 +1369,30 @@ void report_task_save_device_config(device_config_t *new_config,device_config_t 
 {
     char temp[14];
 
-    if (new_config->temperature_cold != default_config->temperature_cold) {
-        snprintf(temp,14,"%.1f",new_config->temperature_cold);
-        device_env_set(ENV_NAME_TEMPERATURE_COLD,temp);
+    if (new_config->temperature_cold_min != default_config->temperature_cold_min) {
+        snprintf(temp,14,"%.1f",new_config->temperature_cold_min);
+        device_env_set(ENV_NAME_TEMPERATURE_COLD_MIN,temp);
+        new_config->is_new = 1;
     }
-    if (new_config->temperature_freeze != new_config->temperature_freeze) {
-        snprintf(temp,14,"%.1f",new_config->temperature_freeze);
-        device_env_set(ENV_NAME_TEMPERATURE_FREEZE,temp);
+    if (new_config->temperature_cold_max != default_config->temperature_cold_max) {
+        snprintf(temp,14,"%.1f",new_config->temperature_cold_max);
+        device_env_set(ENV_NAME_TEMPERATURE_COLD_MAX,temp);
+        new_config->is_new = 1;
+    }
+    if (new_config->temperature_freeze_min != new_config->temperature_freeze_min) {
+        snprintf(temp,14,"%.1f",new_config->temperature_freeze_min);
+        device_env_set(ENV_NAME_TEMPERATURE_FREEZE_MIN,temp);
+        new_config->is_new = 1;
+    }
+    if (new_config->temperature_freeze_min != new_config->temperature_freeze_max) {
+        snprintf(temp,14,"%.1f",new_config->temperature_freeze_max);
+        device_env_set(ENV_NAME_TEMPERATURE_FREEZE_MAX,temp);
+        new_config->is_new = 1;
     }
     if (new_config->is_lock != default_config->is_lock) {
         snprintf(temp,14,"%d",new_config->is_lock);
         device_env_set(ENV_NAME_COMPRESSOR_CTRL,temp);
+        new_config->is_new = 1;
     }
     
 }
@@ -1136,6 +1410,18 @@ static int report_task_dispatch_device_config(device_config_t *config)
     }
     log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
 
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+    /*分发冷藏温度*/
+    compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_SETTING;
+    compressor_msg.content.temperature_setting_min = config->temperature_cold_min;
+    compressor_msg.content.temperature_setting_max = config->temperature_cold_max;
+#else 
+    /*分发冷冻温度*/
+    compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_SETTING;
+    compressor_msg.content.temperature_setting_min = config->temperature_freeze_min;
+    compressor_msg.content.temperature_setting_max = config->temperature_freeze_max;
+#endif
+    log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
     return 0;
 }
 
@@ -1163,6 +1449,11 @@ static void report_task_init()
     report_task_context.active.opt_code = OPT_CODE_CHINA_MOBILE;
     report_task_context.active.fw_version = FIRMWARE_VERSION_STR;
     report_task_context.active.fw_code = FIRMWARE_VERSION_HEX;
+    /*轮询配置*/
+    report_task_context.loop_config.url = URL_LOOP_CONFIG;
+    report_task_context.loop_config.key = KEY;
+    report_task_context.loop_config.source = SOURCE;
+    report_task_get_sn(report_task_context.loop_config.sn);
     /*日志*/
     report_task_context.log.key = KEY;
     report_task_get_sn(report_task_context.log.sn);
@@ -1200,6 +1491,7 @@ void report_task(void const *argument)
     report_task_fault_timer_init();
     report_task_upgrade_timer_init();
     report_task_download_timer_init();
+    report_task_loop_config_timer_init();
 
     report_task_init();
     device_env_init();
@@ -1207,6 +1499,8 @@ void report_task(void const *argument)
 
     /*分发默认的开机配置参数*/
     report_task_dispatch_device_config(&default_config);
+    /*复制默认配置*/
+    report_task_context.config = default_config;
 
     while (1)
     {
@@ -1214,16 +1508,16 @@ void report_task(void const *argument)
         /*处理SIM ID消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_SIM_ID) {
             strcpy(report_task_context.active.sim_id,msg_recv.content.sim_id);
-        }
-    
-        /*处理位置消息*/
-        if (msg_recv.head.id == REPORT_TASK_MSG_BASE_INFO) {
-            report_task_context.log.base_info = msg_recv.content.base_info;
             /*开始同步时间*/
             if (report_task_context.is_start_sync_utc == 0) {
                 report_task_start_utc_timer(0); 
                 report_task_context.is_start_sync_utc = 1;
             }
+        }
+    
+        /*处理位置消息*/
+        if (msg_recv.head.id == REPORT_TASK_MSG_BASE_INFO) {
+            report_task_context.log.base_info = msg_recv.content.base_info;
         }
 
         /*处理同步UTC消息*/
@@ -1259,14 +1553,42 @@ void report_task(void const *argument)
                 report_task_dispatch_device_config(&report_task_context.config);
                 /*保存新激活的参数*/
                 report_task_save_device_config(&report_task_context.config,&default_config);
+                /*更新默认配置*/
+                default_config = report_task_context.config;
+
                 /*打开启日志上报定时器*/
                 report_task_start_log_timer(report_task_context.config.log_interval);
                 /*打开故障上报定时器*/
                 report_task_start_fault_timer(0);
                 /*激活后获取升级信息*/
                 //report_task_start_upgrade_timer(0); 
+                /*激活后获取准备获取配置信息*/
+                report_task_start_loop_config_timer(report_task_context.config.loop_interval);
             }
         }
+
+        /*设备轮询配置消息*/
+        if (msg_recv.head.id == REPORT_TASK_MSG_LOOP_CONFIG) { 
+            rc = report_task_loop_config(&report_task_context.http_client_context,&report_task_context.loop_config,&report_task_context.config);
+            if (rc != 0) {
+                retry ++;
+                log_error("report task loop config fail.\r\n" );
+                report_task_start_loop_config_timer(report_task_get_retry_timeout(retry)); 
+            } else {
+                retry = 0;
+                log_info("device loop config ok.\r\n");
+                /*分发激活后的配置参数*/
+                report_task_dispatch_device_config(&report_task_context.config);
+                /*保存新激活的参数*/
+                report_task_save_device_config(&report_task_context.config,&default_config);
+                /*更新默认配置*/
+                default_config = report_task_context.config;
+
+                /*再次获取准备获取配置信息*/
+                report_task_start_loop_config_timer(report_task_context.config.loop_interval);
+            }
+        }
+
 
         /*获取更新信息消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_GET_UPGRADE_INFO) { 
@@ -1316,8 +1638,8 @@ void report_task(void const *argument)
 
         /*温度消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_UPDATE) { 
-            report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
-            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[1];
+            report_task_context.log.temperature_cold_min = msg_recv.content.temperature_float[0];
+            report_task_context.log.temperature_freeze_min = msg_recv.content.temperature_float[1];
             if (report_task_context.is_temp_sensor_err == 1) {
                 msg_temp.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR;
                 log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg_temp,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
@@ -1328,9 +1650,9 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_SPAWM) {   
             report_task_context.is_temp_sensor_err = 1;
             device_fault_information_t fault;
-            report_task_context.log.temperature_cold = 0xFF;
+            report_task_context.log.temperature_cold_min = 0xFF;
             report_task_context.log.temperature_env = 0xFF;
-            report_task_context.log.temperature_freeze = 0xFF;
+            report_task_context.log.temperature_freeze_min = 0xFF;
             report_task_build_fault(&fault,"2010","null",report_task_get_utc(),1);
             report_task_insert_fault(&report_task_context.fault.queue,&fault);  
         }
@@ -1339,9 +1661,9 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR) { 
             report_task_context.is_temp_sensor_err = 0;   
             device_fault_information_t fault;
-            report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
+            report_task_context.log.temperature_cold_min = msg_recv.content.temperature_float[0];
             report_task_context.log.temperature_env = msg_recv.content.temperature_float[0] + 10;
-            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[0] - 10;
+            report_task_context.log.temperature_freeze_min = msg_recv.content.temperature_float[0] - 10;
             report_task_build_fault(&fault,"2010","null",report_task_get_utc(),0);
             report_task_insert_fault(&report_task_context.fault.queue,&fault);   
         }

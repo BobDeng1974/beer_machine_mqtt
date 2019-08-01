@@ -33,15 +33,8 @@ void compressor_task(void const *argument);
 #define  COMPRESSOR_TASK_SUCCESS                       0
 #define  COMPRESSOR_TASK_FAIL                          1
 
-#define  COMPRESSOR_TASK_TEMPERATURE_OFFSET            2 /*目标温度的浮动值*/
-#define  COMPRESSOR_TASK_TEMPERATURE_SETTING_MIN       0 /*目标温度可设置的最低值*/
-#define  COMPRESSOR_TASK_TEMPERATURE_SETTING_MAX       28/*目标温度可设置的最高值*/
-#define  COMPRESSOR_TASK_TEMPERATURE_SETTING_DEFAULT   6 /*默认目标温度值*/
-
-#define  COMPRESSOR_TASK_TEMPERATURE_MIN               -2/*压缩机能够达到的最低温度*/
-#define  COMPRESSOR_TASK_TEMPERATURE_MAX               30/*压缩机能够达到的最高温度*/
-
-#define  COMPRESSOR_TASK_TEMPERATURE_ENV_NAME          "temperature"
+#define  COMPRESSOR_TASK_TEMPERATURE_START_ENV_NAME    "t_stop"
+#define  COMPRESSOR_TASK_TEMPERATURE_STOP_ENV_NAME     "t_stop"
 
 enum
 {
@@ -67,8 +60,9 @@ typedef struct
         uint8_t id;
         uint8_t type;
     }head;
-    union {
-        int8_t temperature_setting;/*设置的温度值*/
+    struct {
+        float temperature_setting_min;/*设置的温度最小值*/
+        float temperature_setting_max;/*设置的温度最大值*/
         float temperature_float;/*浮点温度*/
     }content;
 }compressor_task_message_t;/*压缩机任务消息体*/
