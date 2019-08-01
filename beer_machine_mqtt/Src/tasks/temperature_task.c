@@ -5,6 +5,7 @@
 #include "adc_task.h"
 #include "compressor_task.h"
 #include "temperature_task.h"
+#include "report_task.h"
 #include "log.h"
 
 /*任务句柄*/
@@ -162,6 +163,7 @@ void temperature_task(void const *argument)
 {
     temperature_task_message_t msg_recv;
     compressor_task_message_t compressor_msg;
+    report_task_message_t report_msg;
     uint16_t bypass_r_adc;
     int16_t t_int;
     float t_float;
@@ -215,16 +217,23 @@ void temperature_task(void const *argument)
                 if (temperature.err == true){
                     /*压缩机温度错误消息*/
                     compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_ERR;
+                    /*上报任务温度传感器故障*/
+                    report_msg.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_SPAWM;
+
                     log_error("temperature err.\r\n");
                 }else{
                     /*压缩机温度更新消息*/
-                    compressor_msg.head.type = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_UPDATE;
+                    compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_UPDATE;
                     compressor_msg.content.temperature_float = temperature.value_float;
+                    /*上报任务温度消息*/
+                    report_msg.head.id = REPORT_TASK_MSG_TEMPERATURE_UPDATE;
+                    report_msg.content.temperature_float[0] = temperature.value_float;
                     log_info("teperature change to:%.2f C.\r\n",temperature.value_float);
                 }
                 temperature.change = false;       
                 temperature.dir = 0;    
                 log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,TEMPERATURE_TASK_PUT_MSG_TIMEOUT) == pdPASS);
+                log_assert_bool_false(xQueueSend(report_task_msg_q_id,&report_msg,TEMPERATURE_TASK_PUT_MSG_TIMEOUT) == pdPASS);
             }
         }
 

@@ -33,8 +33,8 @@ void report_task(void const * argument);
 
 
 
-#define  REPORT_TASK_FAULT_QUEUE_SIZE                    16 /*故障队列大小*/ 
-
+#define  REPORT_TASK_FAULT_QUEUE_SIZE                    16 /*故障队列大小*/
+  
 typedef struct
 {
     struct {

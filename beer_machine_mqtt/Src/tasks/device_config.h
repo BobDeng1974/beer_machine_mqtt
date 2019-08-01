@@ -26,9 +26,10 @@
 #define  ENV_NAME_LOG_INTERVAL                     "log_interval"
 
 /*啤酒机默认运行配置参数表*/
-#define  DEFAULT_COMPRESSOR_TEMPERATURE_START       2   /**< 默认压缩机停机温度*/
-#define  DEFAULT_COMPRESSOR_TEMPERATURE_STOP        5   /**< 默认压缩机开机温度*/
+#define  DEFAULT_COMPRESSOR_TEMPERATURE_START       5   /**< 默认压缩机停机温度*/
+#define  DEFAULT_COMPRESSOR_TEMPERATURE_STOP        2   /**< 默认压缩机开机温度*/
 #define  DEFAULT_REPORT_LOG_INTERVAL                (1 * 60 * 1000) /**< 默认日志上报间隔时间ms*/
+#define  DEFAULT_REPORT_LOOP_CONFIG_INTERVAL        (1 * 60 * 1000) /**< 默认日志上报间隔时间ms*/
 
 /*虽然压缩机温控可调，但也不能超出极限值*/
 #define  DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT   -20 /**< 可配置温度最低值*/

@@ -230,6 +230,12 @@ void StartDefaultTask(void const * argument)
         level = atoi(cmd_line + strlen("set level "));
         log_set_level(level);
     }
+
+    if (strncmp(cmd_line,"clear",strlen("clear")) == 0) {
+        int device_env_clear();
+        device_env_clear();
+    }
+
     osDelay(500);
   }
   /* USER CODE END StartDefaultTask */
