@@ -110,7 +110,7 @@ static int http_client_build_head(char *buffer,const char *method,http_client_co
             context->user_data_size,
             context->range_start,context->range_start + context->range_size -1);
             head_size = strlen(buffer);
-            log_debug("head:%s\r\n",buffer);        
+            //log_debug("head:%s\r\n",buffer);        
   
     return head_size;     
 }

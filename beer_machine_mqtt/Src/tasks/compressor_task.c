@@ -131,7 +131,7 @@ static void compressor_timer_expired(void const *argument)
 static void compressor_run_time_timer_init()
 {
     osTimerDef(compressor_run_time_timer,compressor_run_time_timer_expired);
-    compressor_run_time_timer_id=osTimerCreate(osTimer(compressor_run_time_timer),osTimerOnce,0);
+    compressor_run_time_timer_id=osTimerCreate(osTimer(compressor_run_time_timer),osTimerPeriodic,0);
     log_assert_null_ptr(compressor_run_time_timer_id);
 }
 
@@ -160,16 +160,21 @@ static void compressor_pwr_turn_on()
     /*缓存开机时间*/
     compressor.run_start_time = compressor_get_current_time();
 }
+
+static void compressor_update_run_time()
+{
+    uint32_t current_time;
+  /*计算开机时间*/
+    current_time = compressor_get_current_time();
+    compressor.run_time += current_time - compressor.run_start_time;
+    compressor.run_time_total += current_time - compressor.run_start_time;
+    compressor.run_start_time = current_time;
+}
 /*压缩机关闭*/
 static void compressor_pwr_turn_off()
 {
-    uint32_t current_time;
-
     bsp_compressor_ctrl_pwr_off();
-    /*计算开机时间*/
-    current_time = compressor_get_current_time() - compressor.run_start_time;
-    compressor.run_time += current_time - compressor.run_start_time;
-    compressor.run_time_total += current_time - compressor.run_start_time;
+    compressor_update_run_time();
 }
 
 /*
@@ -310,9 +315,9 @@ void compressor_task(void const *argument)
             setting_min = msg_recv.content.temperature_setting_min;
             setting_max = msg_recv.content.temperature_setting_max;
             if (setting_min < DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT) {
-                log_error("温度设置值:%d ± %d C无效.< min:%d C.\r\n.",setting_min,DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT);
+                log_error("温度设置值:%.2f C无效.< min:%d C.\r\n.",setting_min,DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT);
             } else if(setting_max > DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT) {
-                log_error("温度设置值:%d ± %d C无效.> max:%d C.\r\n.",setting_max,DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT);
+                log_error("温度设置值:%.2f C无效.> max:%d C.\r\n.",setting_max,DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT);
             } else {     
                 compressor.is_temperature_config = true;
                 if (compressor.temperature_work != setting_max || compressor.temperature_stop != setting_min) {
@@ -342,7 +347,7 @@ void compressor_task(void const *argument)
         }
 
         /*压缩机远程释放压缩机*/
-        if (msg_recv.head.id == COMPRESSOR_TASK_MSG_PWR_ON_DISABLE){
+        if (msg_recv.head.id == COMPRESSOR_TASK_MSG_PWR_ON_ENABLE){
             log_info("unlock compressor.\r\n");
             compressor.is_pwr_enable = true;
             /*发送消息更新压缩机工作状态*/
@@ -354,6 +359,9 @@ void compressor_task(void const *argument)
         if (msg_recv.head.id == COMPRESSOR_TASK_MSG_RUN_TIME_UPDATE){ 
             report_task_message_t report_msg;
             report_msg.head.id = REPORT_TASK_MSG_COMPRESSOR_RUN_TIME;
+            if (compressor.status == COMPRESSOR_STATUS_WORK) {
+                compressor_update_run_time();
+            }
             report_msg.content.run_time = compressor.run_time;
             log_assert_bool_false(xQueueSend(report_task_msg_q_id,&report_msg,COMPRESSOR_TASK_PUT_MSG_TIMEOUT) == pdPASS);    
             compressor.run_time = 0;

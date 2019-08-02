@@ -26,10 +26,10 @@ void report_task(void const * argument);
 #define  REPORT_TASK_MSG_COMPRESSOR_RUN_TIME             0x100c
 
 #define  REPORT_TASK_0_RETRY_TIMEOUT                    (1 * 60 * 1000)
-#define  REPORT_TASK_1_RETRY_TIMEOUT                    (3 * 60 * 1000)
-#define  REPORT_TASK_2_RETRY_TIMEOUT                    (5 * 60 * 1000)
-#define  REPORT_TASK_3_RETRY_TIMEOUT                    (10 * 60 * 1000)
-#define  REPORT_TASK_DEFAULT_RETRY_TIMEOUT              (30 * 60 * 1000)
+#define  REPORT_TASK_1_RETRY_TIMEOUT                    (1 * 60 * 1000)
+#define  REPORT_TASK_2_RETRY_TIMEOUT                    (1 * 60 * 1000)
+#define  REPORT_TASK_3_RETRY_TIMEOUT                    (1 * 60 * 1000)
+#define  REPORT_TASK_DEFAULT_RETRY_TIMEOUT              (1 * 60 * 1000)
 
 
 

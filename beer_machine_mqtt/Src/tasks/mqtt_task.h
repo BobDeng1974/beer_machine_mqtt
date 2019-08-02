@@ -25,7 +25,7 @@ extern osThreadId  mqtt_task_hdl;
 */
 void mqtt_task(void const * argument);
 
-#define  MQTT_TASK_CONTENT_SIZE_MAX  128
+#define  MQTT_TASK_CONTENT_SIZE_MAX  64
 typedef struct
 {
     struct {

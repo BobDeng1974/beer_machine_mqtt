@@ -22,6 +22,7 @@
 #include "mqtt_client.h"
 #include "mqtt_task.h"
 #include "mqtt_context.h"
+#include "compressor_task.h"
 #include "log.h"
 
  /** 消息队列handle*/
@@ -30,8 +31,8 @@ osMessageQId  mqtt_task_msg_q_id;
 osThreadId  mqtt_task_hdl;       
 
 /* Default Configurations */
-#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/device/compressor/ctrl"
-#define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/device/compressor/rsp_ctrl"
+#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/cloud/cfreezer/DC2902493310000B06180338/m"
+#define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/cloud/cfreezer/SN999999999/m"
 
 #define  DEFAULT_MQTT_HOST             "mqtt.mymlsoft.com"
 #define  DEFAULT_MQTT_PORT             1883
@@ -41,12 +42,9 @@ osThreadId  mqtt_task_hdl;
 #define  DEFAULT_KEEP_ALIVE_SEC        60
 #define  DEFAULT_CLIENT_ID             "wkxboot_client"
 #define  DEFAULT_USER_NAME             "a24a642b4d1d473b"
-#define  DEFAULT_USER_PASSWD           "pwd"
+#define  DEFAULT_USER_PASSWD           "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0YW8xLmppYW5nIiwidXNlciI6InRvdSJ9._yv05gR0dAFJeDoEPI8Wo5qB01Gf-cM8_M1SbdoV9jQ"
 
-#define  HOST_SOCKET                   0
-
-
-#define  MQTT_SEND_BUFFER_SIZE         200
+#define  MQTT_SEND_BUFFER_SIZE         300
 #define  MQTT_RECV_BUFFER_SIZE         200
 #define  PRINT_BUFFER_SIZE             200
 
@@ -123,6 +121,100 @@ static void mqtt_task_keep_alive_timer_callback(void const *argument)
     msg.head.id = MQTT_TASK_MSG_KEEP_ALIVE;
     log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&msg,5) == pdPASS);
 }
+
+#include "cJSON.h"
+
+typedef struct
+{
+    int msg_id;
+    int pwr_state;
+    int result;
+    uint32_t time;
+}mqtt_task_compressor_ctrl_t;
+
+/*解析协议数据*/
+static int mqtt_task_parse_msg(char *rsp_json_str,mqtt_task_compressor_ctrl_t *compressor_ctrl)
+{
+    int rc = -1;
+    cJSON *rsp_json;
+    cJSON *temp;
+  
+    log_debug("parse mqtt rsp.\r\n");
+    rsp_json = cJSON_Parse(rsp_json_str);
+    if (rsp_json == NULL) {
+        log_error("mqtt rsp is not json.\r\n");
+        return -1;
+    }
+    /*controlId*/
+    temp = cJSON_GetObjectItem(rsp_json,"controlId");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("controlId is not num.\r\n");
+        goto err_exit;  
+    }
+    compressor_ctrl->msg_id = temp->valueint;
+    /*powerState*/
+    temp = cJSON_GetObjectItem(rsp_json,"powerState");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("powerState is not num.\r\n");
+        goto err_exit;  
+    }
+    compressor_ctrl->pwr_state = temp->valueint;
+
+    /*timestamp*/
+    temp = cJSON_GetObjectItem(rsp_json,"timestamp");
+    if (!cJSON_IsNumber(temp)) {
+        log_error("timestamp is not num.\r\n");
+        goto err_exit;  
+    }
+    compressor_ctrl->time = temp->valueint + 100;/*模拟100ms延时*/
+
+    log_info("mqtt ctrl.id:%d pwr_state:%d time:%d.\r\n",compressor_ctrl->msg_id,compressor_ctrl->pwr_state,compressor_ctrl->time);
+    rc = 0;
+
+err_exit:
+
+    cJSON_Delete(rsp_json);
+    return rc;
+}
+
+/*通知压缩机*/
+static int mqtt_task_notify_compressor(int pwr_state)
+{
+    compressor_task_message_t compressor_msg;
+
+    if (pwr_state == 0) {
+        compressor_msg.head.id = COMPRESSOR_TASK_MSG_PWR_ON_DISABLE;
+    } else {
+        compressor_msg.head.id = COMPRESSOR_TASK_MSG_PWR_ON_ENABLE;
+    }
+    log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,5) == pdPASS);
+
+    return 0;
+}
+
+/*通知回应结果*/
+static void mqtt_task_notify_response_ctrl_result(mqtt_task_compressor_ctrl_t *compressor_ctrl)
+{
+    mqtt_task_msg_t mqtt_msg;
+
+    /*构造回应结果*/
+    char *json_str;
+    cJSON *result_json;
+    result_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(result_json,"msgId",compressor_ctrl->msg_id);
+    cJSON_AddNumberToObject(result_json,"result",compressor_ctrl->result);
+    cJSON_AddNumberToObject(result_json,"responseTime",compressor_ctrl->time);
+    json_str = cJSON_PrintUnformatted(result_json);
+    cJSON_Delete(result_json);
+    strcpy(mqtt_msg.content.value,json_str);
+    mqtt_msg.content.size = strlen(mqtt_msg.content.value);
+    cJSON_free(json_str);
+
+    /*告知mqtt任务回应topic*/
+    mqtt_msg.head.id = MQTT_TASK_MSG_PUBLIC;
+    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
+}
+
 #include "mqtt_config.h"
 #include "mqtt_client.h"
 #include "mqtt_net.h"
@@ -188,6 +280,14 @@ static int mqtt_task_message_cb(MqttClient *client, MqttMessage *msg,
 
     if (msg_done) {
         log_info("MQTT Message: Done\r\n");
+        /*处理消息*/
+        mqtt_task_compressor_ctrl_t compressor_ctrl;
+        if (mqtt_task_parse_msg((char *)buf,&compressor_ctrl) == 0) {
+            if (mqtt_task_notify_compressor(compressor_ctrl.pwr_state) == 0) {
+                compressor_ctrl.result = 1;
+                mqtt_task_notify_response_ctrl_result(&compressor_ctrl);
+            }
+        }
     }
 
     /* Return negative to terminate publish processing */
@@ -469,9 +569,9 @@ void mqtt_task(void const * argument)
     mqtt_task_msg_t mqtt_msg_recv; 
 
     mqtt_task_keep_alive_timer_init();
-
     while(1)
     {
+    osDelay(500);
     if (xQueueReceive(mqtt_task_msg_q_id, &mqtt_msg_recv,0xFFFFFFFF) == pdTRUE) {
         /*处理消息*/
         if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_NET_READY) {

@@ -225,7 +225,10 @@ int socket_open(char *host,const uint16_t port,socket_protocol_t protocol)
     if (rc == 0) {
         return handle;
     }
+
+    m6312_close(handle);
     socket_free_id(handle);
+
     return SOCKET_ERR_NETWORK;
 }
 
@@ -297,11 +300,12 @@ int socket_read(const int handle,char *buffer,int size,uint32_t timeout)
     
     read = socket_recv_buffer_read(handle,buffer,size,timeout);
     
-    if (read < 0 || read != size) {
-        return SOCKET_ERR_NETWORK;
-    }
     if (read == 0) {
         return SOCKET_ERR_TIMEOUT;
+    }
+
+    if (read < 0 || read != size) {
+        return SOCKET_ERR_NETWORK;
     }
 
     return read;

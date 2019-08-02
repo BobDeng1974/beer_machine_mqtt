@@ -177,51 +177,44 @@ void temperature_task(void const *argument)
             if (msg_recv.head.id == TEMPERATURE_TASK_MSG_TYPE_ADC_VALUE) {
                 bypass_r_adc = msg_recv.content.adc;  
                 t_float = get_float_temperature_by_adc(bypass_r_adc);
-                /*判断是否在报警范围*/ 
-                if (t_float == TEMPERATURE_ERR_VALUE || (t_float > TEMPERATURE_ALARM_VALUE_MAX || t_float < TEMPERATURE_ALARM_VALUE_MIN)) {
-                    if (temperature.err == false) {  
-                        temperature.err_cnt ++; 
-                        if (temperature.err_cnt >= TEMPERATURE_ERR_CNT) {
-                            temperature.err = true;
-                            temperature.change = true;
-                        }
-                    }
-                } else {  
-                    t_int = calculate_approximate_t(t_float);
-                    /*温度由错误变为正常，需要发送温度变化消息*/
-                    if ( temperature.err == true) {
-                        temperature.err = false;
-                        temperature.err_cnt = 0;
-                        temperature.change = true;
-                    }
-                    /*温度精度*/
-                    if (t_float - temperature.value_float >= TEMPERATURE_ACCURATE) {
-                        temperature.dir += 1;    
-                    }else if(t_float - temperature.value_float <= -TEMPERATURE_ACCURATE) {
-                        temperature.dir -= 1;      
-                    } else {
-                        temperature.dir = 0; 
-                    }
-                    /*温度正常变化 当满足条件时 接受数据变化*/
-                    if (temperature.dir >= TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT ||
-                        temperature.dir <= -TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT){
-                        temperature.value_int = t_int;
-                        temperature.value_float = t_float;
-                        temperature.change = true;
-                    }
+                t_int = calculate_approximate_t(t_float);
+                /*温度由错误变为正常，需要发送温度变化消息*/
+                if (temperature.err == true) {
+                    temperature.err = false;
+                    temperature.change = true;
+                }
+                /*温度精度*/
+                if (t_float - temperature.value_float >= TEMPERATURE_ACCURATE) {
+                    temperature.dir += 1;    
+                }else if(t_float - temperature.value_float <= -TEMPERATURE_ACCURATE) {
+                    temperature.dir -= 1;      
+                } else {
+                    temperature.dir = 0; 
+                }
+                /*温度正常变化 当满足条件时 接受数据变化*/
+                if (temperature.dir >= TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT ||
+                    temperature.dir <= -TEMPERATURE_TASK_TEMPERATURE_CHANGE_CNT){
+                    temperature.value_int = t_int;
+                    temperature.value_float = t_float;
+                    temperature.change = true;
+                }
+            }
+            /*温度ADC错误消息处理*/
+            if (msg_recv.head.id == TEMPERATURE_TASK_MSG_TYPE_ADC_ERR) {
+                if (temperature.err != true) {
+                    temperature.err = true;
+                    temperature.change = true;
                 }
             }
     
             if (temperature.change == true) {
-         
                 if (temperature.err == true){
                     /*压缩机温度错误消息*/
                     compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_ERR;
                     /*上报任务温度传感器故障*/
                     report_msg.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_SPAWM;
-
                     log_error("temperature err.\r\n");
-                }else{
+                } else {
                     /*压缩机温度更新消息*/
                     compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_UPDATE;
                     compressor_msg.content.temperature_float = temperature.value_float;

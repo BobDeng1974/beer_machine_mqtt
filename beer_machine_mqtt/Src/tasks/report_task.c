@@ -10,6 +10,7 @@
 #include "tasks_init.h"
 #include "temperature_task.h"
 #include "compressor_task.h"
+#include "mqtt_task.h"
 #include "flash_if.h"
 #include "stdlib.h"
 #include "cJSON.h"
@@ -108,10 +109,8 @@ typedef enum
   
 typedef struct
 {
-    char code[5];
-    char msg[6];
-    char time[14];
-    uint8_t status;
+    int code;
+    fault_status_t status;
 }device_fault_information_t;
 
 typedef struct
@@ -129,7 +128,6 @@ typedef struct
     char sn[SN_LEN + 1];
     char *source;
     char *key;
-    char *boundary;
     device_fault_queue_t queue;
 }device_fault_t;
     
@@ -419,7 +417,6 @@ static int report_task_build_url(char *url,const int size,const char *origin_url
     return 0;
 }
 
-
 /*构造日志数据json*/
 static char *report_task_build_log_json_str(device_log_t *log)
 {
@@ -429,15 +426,11 @@ static char *report_task_build_log_json_str(device_log_t *log)
 
     log_json = cJSON_CreateObject();
     cJSON_AddStringToObject(log_json,"sn",log->sn);
-    cJSON_AddNumberToObject(log_json,"ambTemp",log->temperature_env);
-#if  CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
-    cJSON_AddNumberToObject(log_json,"refTemp",log->temperature_cold);
-#else
-    cJSON_AddNumberToObject(log_json,"refTemp",log->temperature_freeze);
-#endif
-    cJSON_AddNumberToObject(log_json,"frzTemp",log->temperature_freeze);
+    cJSON_AddNumberToObject(log_json,"ambTemp",(int)log->temperature_env);
+    cJSON_AddNumberToObject(log_json,"refTemp",(int)log->temperature_cold);
+    cJSON_AddNumberToObject(log_json,"frzTemp",(int)log->temperature_freeze);
     cJSON_AddNumberToObject(log_json,"comState",log->compressor_is_pwr_on);
-    cJSON_AddNumberToObject(log_json,"runTime",log->compressor_run_time);
+    cJSON_AddNumberToObject(log_json,"runTime",log->compressor_run_time / (1000 * 60));/*单位分钟*/
 
     /*base info*/
     cJSON_AddItemToObject(log_json,"baseInfo",base_info_array_json = cJSON_CreateArray());
@@ -461,7 +454,7 @@ static int report_task_parse_log_rsp_json(char *json_str)
     cJSON *log_rsp_json;
     cJSON *temp;
   
-    log_debug("parse fault rsp.\r\n");
+    log_debug("parse log rsp.\r\n");
     log_rsp_json = cJSON_Parse(json_str);
     if (log_rsp_json == NULL) {
         log_error("rsp is not json.\r\n");
@@ -621,7 +614,7 @@ static int report_task_parse_upgrade_rsp_json_str(char *json_str,device_upgrade_
     cJSON *upgrade_rsp_json;
     cJSON *temp,*data,*upgrade;
   
-    log_debug("parse active rsp.\r\n");
+    log_debug("parse upgrade rsp.\r\n");
     upgrade_rsp_json = cJSON_Parse(json_str);
     if (upgrade_rsp_json == NULL) {
         log_error("rsp is not json.\r\n");
@@ -775,6 +768,7 @@ static int report_task_insert_fault(device_fault_queue_t *queue,device_fault_inf
     }
     queue->imformation[queue->write & (REPORT_TASK_FAULT_QUEUE_SIZE - 1)] = *fault;
     queue->write++;    
+    log_info("insert fault.code:%d.\r\n",fault->code);
     return 0;    
 }
 
@@ -783,11 +777,11 @@ static int report_task_peek_fault(device_fault_queue_t *queue,device_fault_infor
 {     
     if (queue->read >= queue->write) {
         log_warning("fault queue is null.\r\n");
-        return -1;
+        return 0;
     }
        
     *fault = queue->imformation[queue->read & (REPORT_TASK_FAULT_QUEUE_SIZE - 1)];   
-    return 0;    
+    return 1;    
 }
 /*从故障参数队列删除一个故障参数*/         
 static int report_task_delete_fault(device_fault_queue_t *queue)
@@ -795,10 +789,11 @@ static int report_task_delete_fault(device_fault_queue_t *queue)
     if (queue->read < queue->write) {
         queue->read++; 
     }
+    log_info("delete one fault.\r\n");
     return 0;
 }
  
-
+#if 0
 /*构造故障信息*/
 static void report_task_build_fault(device_fault_information_t *fault,char *code,char *msg,const uint32_t time,uint8_t status)
 {
@@ -855,9 +850,25 @@ static void report_task_build_fault_form_data_str(char *form_data,const uint16_t
     err_time.name = "errorTime";
     err_time.value = fault->time;
  
-    report_task_build_form_data(form_data,size,BOUNDARY,4,&err_code,&err_msg,&err_time);
+    report_task_build_form_data(form_data,size,BOUNDARY,3,&err_code,&err_msg,&err_time);
  }
+#endif
 
+
+static char *report_task_build_fault_json_str(char *sn,device_fault_information_t *fault)
+{
+ /*构造故障信息数据json*/
+    char *json_str;
+    cJSON *fault_json;
+
+    fault_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(fault_json,"sn",sn);
+    cJSON_AddNumberToObject(fault_json,"faultCode",fault->code);
+
+    json_str = cJSON_PrintUnformatted(fault_json);
+    cJSON_Delete(fault_json);
+    return json_str;
+}
 
 /*解析故障上报返回的信息数据json*/
 static int report_task_parse_fault_rsp_json(char *json_str)
@@ -892,31 +903,28 @@ err_exit:
 }
 
 /*执行故障信息数据上报*/
-static int report_task_do_report_fault(http_client_context_t *http_client_ctx,char *url_origin,char *key,char *sn,char *src,char *boundary,device_fault_information_t *fault)
+static int report_task_do_report_fault(http_client_context_t *http_client_ctx,char *url_origin,char *key,char *sn,char *src,device_fault_information_t *fault)
 {
     int rc;
     uint32_t timestamp;
     char timestamp_str[14] = { 0 };
     char sign_str[33] = { 0 };
-    char req[320];
+    char *req;
     char rsp[400] = { 0 };
     char url[200] = { 0 };
 
-    /*判断错误时间*/
-    timestamp = atoi(fault->time);
-    if (timestamp < 1546099200) {/*时间晚于2018.12.30没有同步，重新构造时间*/
-        timestamp = report_task_get_utc() - timestamp;
-        snprintf(fault->time,14,"%d",timestamp);
-    }
+    /*计算时间戳字符串*/
+    timestamp = report_task_get_utc();
+    snprintf(timestamp_str,14,"%d",timestamp);
 
     /*计算时间戳字符串*/
     timestamp = report_task_get_utc();
     snprintf(timestamp_str,14,"%d",timestamp);
     /*计算sign*/
-    report_task_build_sign(sign_str,7,fault->code,fault->msg,fault->time,key,sn,src,timestamp_str);
+    report_task_build_sign(sign_str,4,key,sn,src,timestamp_str);
     /*构建新的url*/
     report_task_build_url(url,200,url_origin,sn,sign_str,src,timestamp_str);  
-    report_task_build_fault_form_data_str(req,320,fault,boundary);
+    req = report_task_build_fault_json_str(sn,fault);
 
  
     http_client_ctx->range_size = 200;
@@ -927,9 +935,7 @@ static int report_task_do_report_fault(http_client_context_t *http_client_ctx,ch
     http_client_ctx->timeout = 20000;
     http_client_ctx->user_data = (char *)req;
     http_client_ctx->user_data_size = strlen(req);
-    http_client_ctx->boundary = boundary;
-    http_client_ctx->is_form_data = true;
-    http_client_ctx->content_type = "multipart/form-data; boundary=";
+    http_client_ctx->content_type = "application/Json";
  
     rc = http_client_post(http_client_ctx);
  
@@ -959,9 +965,9 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
     /*存在未上报的故障*/
     if (rc == 1) {
         if (fault_info.status == HAL_FAULT_STATUS_FAULT) {
-            rc = report_task_do_report_fault(http_client_ctx,fault->url_spawn,fault->key,fault->sn,fault->source,fault->boundary,&fault_info);
+            rc = report_task_do_report_fault(http_client_ctx,fault->url_spawn,fault->key,fault->sn,fault->source,&fault_info);
         } else {
-            rc = report_task_do_report_fault(http_client_ctx,fault->url_clear,fault->key,fault->sn,fault->source,fault->boundary,&fault_info);
+            rc = report_task_do_report_fault(http_client_ctx,fault->url_clear,fault->key,fault->sn,fault->source,&fault_info);
         }
         if (rc != 0) {
             log_error("report task report fault fail.\r\n");
@@ -996,17 +1002,19 @@ static int report_task_report_fault(http_client_context_t *http_client_ctx,devic
 static int report_task_parse_loop_config_rsp_json_str(char *json_str ,device_config_t *config)
 {
     int rc = -1;
-    cJSON *active_rsp_json;
+    cJSON *loop_cfg_rsp_json;
+    cJSON *loop_cfg_data_json;
+    cJSON *loop_cfg_run_cfg_json;
     cJSON *temp;
   
     log_debug("parse loop config rsp.\r\n");
-    active_rsp_json = cJSON_Parse(json_str);
-    if (active_rsp_json == NULL) {
+    loop_cfg_rsp_json = cJSON_Parse(json_str);
+    if (loop_cfg_rsp_json == NULL) {
         log_error("rsp is not json.\r\n");
         return -1;  
     }
     /*检查code值 200成功*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"code");
+    temp = cJSON_GetObjectItem(loop_cfg_rsp_json,"code");
     if (!cJSON_IsNumber(temp)) {
         log_error("code is not num.\r\n");
         goto err_exit;  
@@ -1017,78 +1025,87 @@ static int report_task_parse_loop_config_rsp_json_str(char *json_str ,device_con
         log_error("active rsp err code:%d.\r\n",temp->valueint); 
         goto err_exit;  
     }  
-     /*检查data*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"data");
-    if (!cJSON_IsObject(temp)) {
+    /*检查data*/
+    loop_cfg_data_json = cJSON_GetObjectItem(loop_cfg_rsp_json,"data");
+    if (!cJSON_IsObject(loop_cfg_data_json)) {
         log_error("data is null.\r\n");
         rc = 0;
         goto err_exit;  
     }
      /*检查runConfig*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"runConfig");
-    if (!cJSON_IsObject(temp)) {
+    loop_cfg_run_cfg_json = cJSON_GetObjectItem(loop_cfg_data_json,"runConfig");
+    if (!cJSON_IsObject(loop_cfg_run_cfg_json)) {
         log_error("runConfig is null.\r\n");
         rc = 0;
         goto err_exit;  
     }
-    /*检查safeTemp*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMin");
+    /*检查safeTempMin*/
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"safeTempMin");
     if (!cJSON_IsNumber(temp)) {
         log_error("safeTempMin is not num.\r\n");
         goto err_exit;  
     }
-    config->temperature_cold_min = temp->valuedouble;
 
-    temp = cJSON_GetObjectItem(active_rsp_json,"safeTempMax");
+    if (temp->valuedouble > DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT && temp->valuedouble < DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT) {
+        config->temperature_cold_min = temp->valuedouble;
+    }
+    /*检查safeTempMax*/
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"safeTempMax");
     if (!cJSON_IsNumber(temp)) {
         log_error("safeTempMax is not num.\r\n");
         goto err_exit;  
     }
-    config->temperature_cold_max = temp->valuedouble;
-    /*检查freezingTemp*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMin");
+    if (temp->valuedouble > DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT && temp->valuedouble < DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT) {
+        config->temperature_cold_max = temp->valuedouble;
+    }
+    /*检查freezingTempMin*/
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"freezingTempMin");
     if (!cJSON_IsNumber(temp)) {
         log_error("freezingTempMin is not num.\r\n");
         goto err_exit;  
     }
-    config->temperature_freeze_min = temp->valuedouble;
+    if (temp->valuedouble > DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT && temp->valuedouble < DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT) {
+        config->temperature_freeze_min = temp->valuedouble;
+    }
 
-    temp = cJSON_GetObjectItem(active_rsp_json,"freezingTempMax");
+    /*检查freezingTempMin*/
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"freezingTempMax");
     if (!cJSON_IsNumber(temp)) {
         log_error("freezingTempMax is not num.\r\n");
         goto err_exit;  
     }
-    config->temperature_freeze_max = temp->valuedouble;
+    if (temp->valuedouble > DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT && temp->valuedouble < DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT) {
+        config->temperature_freeze_max = temp->valuedouble;
+    }
   
     /*检查powerState*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"powerState");
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"powerState");
     if (!cJSON_IsNumber(temp)) {
         log_error("powerState is not num.\r\n");
         goto err_exit;  
     }
     config->is_lock = temp->valueint == 0 ? 1 : 0;
     /*检查日志间隔*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"logInterval");
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"logInterval");
     if (!cJSON_IsNumber(temp)) {
         log_error("logInterval is not num.\r\n");
         goto err_exit;  
     }
     config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
     /*检查轮询配置间隔*/
-    temp = cJSON_GetObjectItem(active_rsp_json,"loopConfInterval");
+    temp = cJSON_GetObjectItem(loop_cfg_run_cfg_json,"loopConfInterval");
     if (!cJSON_IsNumber(temp)) {
         log_error("logInterval is not num.\r\n");
         goto err_exit;  
     }
-    config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
+    config->loop_interval = temp->valueint * 60 * 1000;/*转换成ms*/
     rc = 0;
-    log_info("loop config rsp [lock:%d t_cold_min:%d ~ %d.t_freeze_min:%d ~ %d.log:%d loop:%d\r\n",
+    log_info("loop config rsp [lock:%d t_cold:%.2f ~ %.2f t_freeze:%.2f ~ %.2f log:%d loop:%d\r\n",
              config->is_lock,config->temperature_cold_min,config->temperature_cold_max,
              config->temperature_freeze_min,config->temperature_freeze_max,config->log_interval,
              config->loop_interval);
-  
 err_exit:
-    cJSON_Delete(active_rsp_json);
+    cJSON_Delete(loop_cfg_rsp_json);
     return rc;
 }
 
@@ -1096,37 +1113,26 @@ err_exit:
 static int report_task_loop_config(http_client_context_t *http_client_ctx,device_loop_config_t *loop_config,device_config_t *config)
 {
     int rc;
-    uint32_t timestamp;
-    char timestamp_str[14] = { 0 };
-    char sign_str[33] = { 0 };
-    char *req;
+  
     char rsp[400] = { 0 };
     char url[200] = { 0 };
 
-    /*计算时间戳字符串*/
-    timestamp = report_task_get_utc();
-    snprintf(timestamp_str,14,"%d",timestamp);
-    /*计算sign*/
-    report_task_build_sign(sign_str,4,loop_config->key,loop_config->sn,loop_config->source,timestamp_str);
     /*构建新的url*/
-    report_task_build_url(url,200,loop_config->url,loop_config->sn,sign_str,loop_config->source,timestamp_str);  
+    snprintf(url,200,"%s%s%s",loop_config->url,"/",loop_config->sn);  
    
-    req = report_task_build_loop_config_json_str(loop_config);
- 
     http_client_ctx->range_size = 200;
     http_client_ctx->range_start = 0;
     http_client_ctx->rsp_buffer = rsp;
     http_client_ctx->rsp_buffer_size = 400;
     http_client_ctx->url = url;
     http_client_ctx->timeout = 10000;
-    http_client_ctx->user_data = (char *)req;
-    http_client_ctx->user_data_size = strlen(req);
+    http_client_ctx->user_data = NULL;
+    http_client_ctx->user_data_size = 0;
     http_client_ctx->boundary = BOUNDARY;
     http_client_ctx->is_form_data = false;
     http_client_ctx->content_type = "application/Json";
  
-    rc = http_client_post(http_client_ctx);
-    cJSON_free(req);
+    rc = http_client_get(http_client_ctx);
  
     if (rc != 0) {
         log_error("loop config err.\r\n");  
@@ -1186,7 +1192,7 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
     int rc = -1;
     cJSON *active_rsp_json;
     cJSON *active_data_json;
-    cJSON *active_runc_onfig_json;
+    cJSON *active_run_config_json;
     cJSON *temp;
   
     log_debug("parse active rsp.\r\n");
@@ -1215,14 +1221,14 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
         goto err_exit;  
     }
      /*检查runConfig*/
-    active_runc_onfig_json = cJSON_GetObjectItem(active_data_json,"runConfig");
-    if (!cJSON_IsObject(active_runc_onfig_json)) {
+    active_run_config_json = cJSON_GetObjectItem(active_data_json,"runConfig");
+    if (!cJSON_IsObject(active_run_config_json)) {
         log_error("runConfig is null.\r\n");
         rc = 0;
         goto err_exit;  
     }
     /*检查safeTempMin*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"safeTempMin");
+    temp = cJSON_GetObjectItem(active_run_config_json,"safeTempMin");
     if (!cJSON_IsNumber(temp)) {
         log_error("safeTempMin is not num.\r\n");
         goto err_exit;  
@@ -1232,7 +1238,7 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
         config->temperature_cold_min = temp->valuedouble;
     }
     /*检查safeTempMax*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"safeTempMax");
+    temp = cJSON_GetObjectItem(active_run_config_json,"safeTempMax");
     if (!cJSON_IsNumber(temp)) {
         log_error("safeTempMax is not num.\r\n");
         goto err_exit;  
@@ -1241,7 +1247,7 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
         config->temperature_cold_max = temp->valuedouble;
     }
     /*检查freezingTempMin*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"freezingTempMin");
+    temp = cJSON_GetObjectItem(active_run_config_json,"freezingTempMin");
     if (!cJSON_IsNumber(temp)) {
         log_error("freezingTempMin is not num.\r\n");
         goto err_exit;  
@@ -1251,7 +1257,7 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
     }
 
     /*检查freezingTempMin*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"freezingTempMax");
+    temp = cJSON_GetObjectItem(active_run_config_json,"freezingTempMax");
     if (!cJSON_IsNumber(temp)) {
         log_error("freezingTempMax is not num.\r\n");
         goto err_exit;  
@@ -1261,21 +1267,21 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
     }
   
     /*检查powerState*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"powerState");
+    temp = cJSON_GetObjectItem(active_run_config_json,"powerState");
     if (!cJSON_IsNumber(temp)) {
         log_error("powerState is not num.\r\n");
         goto err_exit;  
     }
     config->is_lock = temp->valueint == 0 ? 1 : 0;
     /*检查日志间隔*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"logInterval");
+    temp = cJSON_GetObjectItem(active_run_config_json,"logInterval");
     if (!cJSON_IsNumber(temp)) {
         log_error("logInterval is not num.\r\n");
         goto err_exit;  
     }
     config->log_interval = temp->valueint * 60 * 1000;/*转换成ms*/
     /*检查轮询配置间隔*/
-    temp = cJSON_GetObjectItem(active_runc_onfig_json,"loopConfInterval");
+    temp = cJSON_GetObjectItem(active_run_config_json,"loopConfInterval");
     if (!cJSON_IsNumber(temp)) {
         log_error("logInterval is not num.\r\n");
         goto err_exit;  
@@ -1496,7 +1502,6 @@ static void report_task_init()
     report_task_context.fault.source = SOURCE;
     report_task_context.fault.url_spawn = URL_FAULT;
     report_task_context.fault.url_clear = URL_FAULT_DELETE;
-    report_task_context.fault.boundary = BOUNDARY;
 
 }
 
@@ -1594,6 +1599,10 @@ void report_task(void const *argument)
                 //report_task_start_upgrade_timer(0); 
                 /*激活后获取准备获取配置信息*/
                 report_task_start_loop_config_timer(report_task_context.config.loop_interval);
+                /*告知mqtt任务网络就绪*/
+                mqtt_task_msg_t mqtt_msg;
+                mqtt_msg.head.id = MQTT_TASK_MSG_NET_READY;
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             }
         }
 
@@ -1671,7 +1680,8 @@ void report_task(void const *argument)
         /*温度消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_UPDATE) { 
             report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
-            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[1];
+            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[0];
+            report_task_context.log.temperature_env = msg_recv.content.temperature_float[0] + 10;
             if (report_task_context.is_temp_sensor_err == 1) {
                 msg_temp.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR;
                 log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg_temp,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
@@ -1685,7 +1695,12 @@ void report_task(void const *argument)
             report_task_context.log.temperature_cold = 0xFF;
             report_task_context.log.temperature_env = 0xFF;
             report_task_context.log.temperature_freeze = 0xFF;
-            report_task_build_fault(&fault,"2010","null",report_task_get_utc(),1);
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+            fault.code = 110;
+#else
+            fault.code = 120;
+#endif
+            fault.status = HAL_FAULT_STATUS_FAULT;
             report_task_insert_fault(&report_task_context.fault.queue,&fault);  
             /*立即开启故障上报*/
             report_task_start_fault_timer(0);
@@ -1695,11 +1710,15 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR) { 
             report_task_context.is_temp_sensor_err = 0;   
             device_fault_information_t fault;
-            report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
-            report_task_context.log.temperature_env = msg_recv.content.temperature_float[0] + 10;
-            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[0];
-            report_task_build_fault(&fault,"2010","null",report_task_get_utc(),0);
-            report_task_insert_fault(&report_task_context.fault.queue,&fault);   
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+            fault.code = 110;
+#else
+            fault.code = 120;
+#endif
+            fault.status = HAL_FAULT_STATUS_FAULT_CLEAR;
+            report_task_insert_fault(&report_task_context.fault.queue,&fault); 
+            /*立即开启故障上报*/
+            report_task_start_fault_timer(0);  
         }
  
         /*数据上报消息*/

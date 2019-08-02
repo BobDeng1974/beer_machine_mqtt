@@ -39,11 +39,11 @@ int tasks_init(void)
     osThreadDef(report_task, report_task, osPriorityNormal,0,1000);
     report_task_hdl = osThreadCreate(osThread(report_task), NULL);
     log_assert_null_ptr(report_task_hdl);
-    /*
+    
     osThreadDef(mqtt_task, mqtt_task, osPriorityNormal,0,800);
     mqtt_task_hdl = osThreadCreate(osThread(mqtt_task), NULL);
     log_assert_null_ptr(mqtt_task_hdl);
-    */
+    
     osThreadDef(net_task, net_task, osPriorityNormal,0,600);
     net_task_hdl = osThreadCreate(osThread(net_task), NULL);
     log_assert_null_ptr(net_task_hdl);

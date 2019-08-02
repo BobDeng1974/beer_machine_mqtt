@@ -397,10 +397,18 @@ int at_command_execute(at_command_t *command)
     int parse_start_offset = -1;
     tiny_timer_t timer;
 
+#if  AT_COMMAND_RTOS > 0
+    if (at_command_mutex.is_init == 0) {
+        at_command_mutex_init(&at_command_mutex);
+        at_command_mutex.is_init = 1;
+        at_command_mutex_unlock(&at_command_mutex);
+    }
+    at_command_mutex_lock(&at_command_mutex);
+#endif
+
     log_assert_null_ptr(command);
     log_assert_null_ptr(command->handle);
     log_assert_null_ptr(command->response);
-
     log_assert_bool_false(!(command->request_size > 0 && command->request == NULL));
 
     log_debug("at request:%s\r\n",command->request);
@@ -408,13 +416,6 @@ int at_command_execute(at_command_t *command)
     response_size = 0;
     tiny_timer_init(&timer,0,command->timeout);
 
-#if  AT_COMMAND_RTOS > 0
-    if (at_command_mutex.is_init == 0) {
-        at_command_mutex_init(&at_command_mutex);
-        at_command_mutex.is_init = 1;
-    }
-    at_command_mutex_lock(&at_command_mutex);
-#endif
     /*发送请求*/
     rc = at_send_frame_data(command->handle,command->request,command->request_size,tiny_timer_value(&timer));
     if (rc != command->request_size) {

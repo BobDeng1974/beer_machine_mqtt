@@ -6,14 +6,14 @@
 #define  URL_LOG                                    "http://v2236p1176.imwork.net:22132/device/status"
 #define  URL_ACTIVE                                 "http://v2236p1176.imwork.net:22132/device/active"
 #define  URL_LOOP_CONFIG                            "http://v2236p1176.imwork.net:22132/device/cfg"
-#define  URL_FAULT                                  "http://v2236p1176.imwork.net:22132/device/exception"
+#define  URL_FAULT                                  "http://v2236p1176.imwork.net:22132/device/exception/"
 #define  URL_FAULT_DELETE                           "http://v2236p1176.imwork.net:22132/device/exception/recover"
 #define  URL_UPGRADE                                "http://v2236p1176.imwork.net:22132/device/getUpgradeInfo"
 
 #define  BOUNDARY                                   "##wkxboot##"
 #define  KEY                                        "ML-freezer"
 #define  SOURCE                                     "ML-freezer"
-#define  MODEL                                      "冷柜"
+#define  MODEL                                      "D-496"
 #define  SN_ADDR                                    0x803f800
 
 #define  SN_LEN                                     24 /**< SN字节长度*/
@@ -29,7 +29,7 @@
 #define  DEFAULT_COMPRESSOR_TEMPERATURE_START       5   /**< 默认压缩机停机温度*/
 #define  DEFAULT_COMPRESSOR_TEMPERATURE_STOP        2   /**< 默认压缩机开机温度*/
 #define  DEFAULT_REPORT_LOG_INTERVAL                (1 * 60 * 1000) /**< 默认日志上报间隔时间ms*/
-#define  DEFAULT_REPORT_LOOP_CONFIG_INTERVAL        (1 * 60 * 1000) /**< 默认日志上报间隔时间ms*/
+#define  DEFAULT_REPORT_LOOP_CONFIG_INTERVAL        (1 * 60 * 1000) /**< 默认配置上报间隔时间ms*/
 
 /*虽然压缩机温控可调，但也不能超出极限值*/
 #define  DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT   -20 /**< 可配置温度最低值*/

@@ -253,10 +253,6 @@ void net_task(void const * argument)
             if (os_event.value.signals & NET_TASK_SIGNAL_INIT) {
                 rc = net_task_net_init(&net_context,NET_TASK_NET_INIT_TIMEOUT);
                 if (rc == 0 && net_context.is_net_ready == 1) {
-                    /*告知mqtt任务网络就绪*/
-                    mqtt_task_msg_t mqtt_msg;
-                    mqtt_msg.head.id = MQTT_TASK_MSG_NET_READY;
-                    log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
                     /*启动查询SIM ID*/
                     osSignalSet(net_task_hdl,NET_TASK_SIGNAL_QUERY_SIM_ID);
                 }
@@ -283,9 +279,9 @@ void net_task(void const * argument)
                     msg.head.id = REPORT_TASK_MSG_BASE_INFO;
                     msg.content.base_info = net_context.base_info;
                     log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg,NET_TASK_PUT_MSG_TIMEOUT) == pdPASS);
-                    /*开启基站信息定时查询*/
-                    net_task_query_base_info_timer_start(NET_TASK_QUERY_BASE_INFO_INTERVAL);
                 }
+                /*开启基站信息定时查询*/
+                net_task_query_base_info_timer_start(NET_TASK_QUERY_BASE_INFO_INTERVAL);
             }
         
         }             
