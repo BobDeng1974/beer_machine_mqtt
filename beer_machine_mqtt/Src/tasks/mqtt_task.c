@@ -138,9 +138,14 @@ static int mqtt_task_parse_msg(char *rsp_json_str,mqtt_task_compressor_ctrl_t *c
     int rc = -1;
     cJSON *rsp_json;
     cJSON *temp;
+    char *sn = "DC2902493310000B06180338";
   
     log_debug("parse mqtt rsp.\r\n");
-    rsp_json = cJSON_Parse(rsp_json_str);
+    if (strncmp(rsp_json_str,sn,strlen(sn)) != 0) {
+        log_error("mqtt rsp is start with sn.\r\n");
+        return -1;
+    }
+    rsp_json = cJSON_Parse(rsp_json_str + strlen(sn));
     if (rsp_json == NULL) {
         log_error("mqtt rsp is not json.\r\n");
         return -1;
