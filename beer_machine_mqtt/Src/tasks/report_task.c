@@ -1288,7 +1288,7 @@ static int report_task_parse_active_rsp_json_str(char *json_str ,device_config_t
     }
     config->loop_interval = temp->valueint * 60 * 1000;/*转换成ms*/
     rc = 0;
-    log_info("active rsp [lock:%d t_cold:%.2f ~ %.2f t_freeze:%.2f ~ %.2f log:%d loop:%d\r\n",
+    log_info("active rsp lock:%d t_cold:%.2f ~ %.2f t_freeze:%.2f ~ %.2f log:%d loop:%d\r\n",
              config->is_lock,config->temperature_cold_min,config->temperature_cold_max,
              config->temperature_freeze_min,config->temperature_freeze_max,config->log_interval,
              config->loop_interval);

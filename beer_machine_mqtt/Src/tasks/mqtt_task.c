@@ -34,19 +34,26 @@ osThreadId  mqtt_task_hdl;
 #define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/cloud/cfreezer/DC2902493310000B06180338/m"
 #define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/cloud/cfreezer/SN999999999/m"
 
+#define  DEVICE_ONLINE_TOPIC               "/cloud/cfreezer/connected"
+#define  DEVICE_ONLINE_MESSAGE             "{\"sn\":\"DC2902493310000B06180338\"}"
+#define  DEVICE_OFFLINE_TOPIC              "/cloud/cfreezer/disconnected"
+#define  DEVICE_OFFLINE_MESSAGE            "{\"sn\":\"DC2902493310000B06180338\"}"
+
 #define  DEFAULT_MQTT_HOST             "mqtt.mymlsoft.com"
 #define  DEFAULT_MQTT_PORT             1883
 #define  DEFAULT_CMD_TIMEOUT_MS        5000
 #define  DEFAULT_CONN_TIMEOUT_MS       5000
-#define  DEFAULT_MQTT_QOS              MQTT_QOS_0
+#define  DEFAULT_MQTT_QOS              MQTT_QOS_1
 #define  DEFAULT_KEEP_ALIVE_SEC        60
-#define  DEFAULT_CLIENT_ID             "wkxboot_client"
+#define  DEFAULT_CLIENT_ID             "c_client"
 #define  DEFAULT_USER_NAME             "a24a642b4d1d473b"
 #define  DEFAULT_USER_PASSWD           "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0YW8xLmppYW5nIiwidXNlciI6InRvdSJ9._yv05gR0dAFJeDoEPI8Wo5qB01Gf-cM8_M1SbdoV9jQ"
 
 #define  MQTT_SEND_BUFFER_SIZE         300
 #define  MQTT_RECV_BUFFER_SIZE         200
 #define  PRINT_BUFFER_SIZE             200
+
+#define  MQTT_TASK_USE_LAST_WILL       1
 
  /** mqtt上下文*/
 static MQTTCtx mqtt_context;
@@ -141,11 +148,11 @@ static int mqtt_task_parse_msg(char *rsp_json_str,mqtt_task_compressor_ctrl_t *c
     char *sn = "DC2902493310000B06180338";
   
     log_debug("parse mqtt rsp.\r\n");
-    if (strncmp(rsp_json_str,sn,strlen(sn)) != 0) {
-        log_error("mqtt rsp is start with sn.\r\n");
+    if (rsp_json_str[0] != strlen(sn) || strncmp(rsp_json_str + 1,sn,strlen(sn)) != 0) {
+        log_error("mqtt rsp not start with sn.\r\n");
         return -1;
     }
-    rsp_json = cJSON_Parse(rsp_json_str + strlen(sn));
+    rsp_json = cJSON_Parse(rsp_json_str + strlen(sn) + 1);
     if (rsp_json == NULL) {
         log_error("mqtt rsp is not json.\r\n");
         return -1;
@@ -171,7 +178,7 @@ static int mqtt_task_parse_msg(char *rsp_json_str,mqtt_task_compressor_ctrl_t *c
         log_error("timestamp is not num.\r\n");
         goto err_exit;  
     }
-    compressor_ctrl->time = temp->valueint + 100;/*模拟100ms延时*/
+    compressor_ctrl->time = (uint32_t)temp->valueint + 1;/*模拟100ms延时*/
 
     log_info("mqtt ctrl.id:%d pwr_state:%d time:%d.\r\n",compressor_ctrl->msg_id,compressor_ctrl->pwr_state,compressor_ctrl->time);
     rc = 0;
@@ -216,7 +223,7 @@ static void mqtt_task_notify_response_ctrl_result(mqtt_task_compressor_ctrl_t *c
     cJSON_free(json_str);
 
     /*告知mqtt任务回应topic*/
-    mqtt_msg.head.id = MQTT_TASK_MSG_PUBLIC;
+    mqtt_msg.head.id = MQTT_TASK_MSG_PUBLIC_CTRL_RSP;
     log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
 }
 
@@ -252,7 +259,7 @@ static int mqtt_task_disconnect_cb(MqttClient* client, int error_code, void* ctx
 static int mqtt_task_message_cb(MqttClient *client, MqttMessage *msg,
     byte msg_new, byte msg_done)
 {
-    byte buf[PRINT_BUFFER_SIZE+1];
+    byte buf[PRINT_BUFFER_SIZE + 1];
     word32 len;
     MQTTCtx* mqtt_ctx = (MQTTCtx*)client->ctx;
 
@@ -280,7 +287,7 @@ static int mqtt_task_message_cb(MqttClient *client, MqttMessage *msg,
     }
     XMEMCPY(buf, msg->buffer, len);
     buf[len] = '\0'; /* Make sure its null terminated */
-    log_info("Payload (%d - %d): %s\r\n",
+    log_info("Payload (%d - %d):%s\r\n",
              msg->buffer_pos, msg->buffer_pos + len, buf);
 
     if (msg_done) {
@@ -317,7 +324,12 @@ static int mqtt_task_contex_init(MQTTCtx *mqtt_ctx)
     mqtt_ctx->clean_session = 1;
     mqtt_ctx->keep_alive_sec = DEFAULT_KEEP_ALIVE_SEC;
     mqtt_ctx->client_id = DEFAULT_CLIENT_ID;
-
+#if MQTT_TASK_USE_LAST_WILL > 0
+    mqtt_ctx->enable_lwt = 1;
+    mqtt_ctx->lwt_msg.topic_name = DEVICE_OFFLINE_TOPIC;
+    mqtt_ctx->lwt_msg.buffer = (byte *)DEVICE_OFFLINE_MESSAGE;
+    mqtt_ctx->lwt_msg.total_len = strlen((const char *)mqtt_ctx->lwt_msg.buffer);
+#endif
     mqtt_ctx->cmd_timeout_ms = DEFAULT_CMD_TIMEOUT_MS;
     mqtt_ctx->conn_timeout_ms = DEFAULT_CONN_TIMEOUT_MS;
     mqtt_ctx->tx_buffer = send_buffer;
@@ -384,6 +396,9 @@ static int mqtt_task_connect(MQTTCtx *mqtt_ctx)
     mqtt_ctx->connect.clean_session = mqtt_ctx->clean_session;
     mqtt_ctx->connect.client_id = mqtt_ctx->client_id;
 
+    /*last will*/
+    mqtt_ctx->connect.enable_lwt = 1;
+    mqtt_ctx->connect.lwt_msg = &mqtt_ctx->lwt_msg;
     /* Optional authentication */
     mqtt_ctx->connect.username = mqtt_ctx->username;
     mqtt_ctx->connect.password = mqtt_ctx->password;
@@ -433,6 +448,12 @@ static int mqtt_task_disconnect(MQTTCtx *mqtt_ctx)
     return rc;    
 }
 
+static int mqtt_task_get_packet_id()
+{
+    static int id = 0;
+    
+    return ++id;
+}
 /**
 * @brief
 * @details
@@ -448,14 +469,14 @@ static int mqtt_task_subscribe_topics(MQTTCtx *mqtt_ctx)
     /* Build list of topics */
     XMEMSET(&mqtt_ctx->subscribe, 0, sizeof(MqttSubscribe));
 
-    mqtt_ctx->topics[0].qos = MQTT_QOS_0;
+    mqtt_ctx->topics[0].qos = mqtt_ctx->qos;
     mqtt_ctx->topics[0].topic_filter = DEVICE_COMPRESSOR_CTRL_TOPIC;
     mqtt_ctx->subscribe.topic_count = 1;
     mqtt_ctx->subscribe.topics = &mqtt_ctx->topics[0];
 
     /* Subscribe Topic */
     mqtt_ctx->subscribe.stat = MQTT_MSG_BEGIN;
-    mqtt_ctx->subscribe.packet_id = 0;
+    mqtt_ctx->subscribe.packet_id = mqtt_task_get_packet_id();
     rc = MqttClient_Subscribe(&mqtt_ctx->client, &mqtt_ctx->subscribe);
 
     log_info("MQTT Subscribe: %s (%d)\r\n",MqttClient_ReturnCodeToString(rc), rc);
@@ -492,12 +513,12 @@ static int mqtt_task_publish_topic(MQTTCtx *mqtt_ctx,char *topic,uint8_t *payloa
     mqtt_ctx->publish.qos = mqtt_ctx->qos;
     mqtt_ctx->publish.duplicate = 0;
     mqtt_ctx->publish.topic_name = topic;
-    mqtt_ctx->publish.packet_id = 0;
+    mqtt_ctx->publish.packet_id = mqtt_task_get_packet_id();
     mqtt_ctx->publish.buffer = (byte*)payload;
     mqtt_ctx->publish.total_len = size;
     rc = MqttClient_Publish(&mqtt_ctx->client, &mqtt_ctx->publish);
 
-    log_info("MQTT Publish: Topic %s, %s (%d)\r\n",&mqtt_ctx->publish.topic_name,MqttClient_ReturnCodeToString(rc), rc);
+    log_info("MQTT Publish: Topic %s payload:%s %s (%d)\r\n",mqtt_ctx->publish.topic_name,mqtt_ctx->publish.buffer,MqttClient_ReturnCodeToString(rc), rc);
     if (rc != MQTT_CODE_SUCCESS) {
         return -1;
     }
@@ -599,7 +620,7 @@ void mqtt_task(void const * argument)
                         mqtt_task_keep_alive_timer_start(mqtt_context.keep_alive_sec * 1000 / 2);
                     }
                     mqtt_context.is_connected = 1;
-                    mqtt_msg.head.id = MQTT_TASK_MSG_SUBSCRIBE;
+                    mqtt_msg.head.id = MQTT_TASK_MSG_PUBLISH_DEVICE_ONLINE;
                     log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
                 }
             }
@@ -619,8 +640,8 @@ void mqtt_task(void const * argument)
             
         }
 
-        /*处理订阅*/
-        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_SUBSCRIBE) {
+        /*处理订阅控制*/
+        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_SUBSCRIBE_DEVICE_CTRL) {
             if (mqtt_context.is_connected == 0) {
                 continue;
             }
@@ -634,8 +655,25 @@ void mqtt_task(void const * argument)
             }
         }
 
-        /*处理发布*/
-        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_PUBLIC) {
+        /*处理发布上线消息*/
+        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_PUBLISH_DEVICE_ONLINE) {
+
+            if (mqtt_context.is_connected == 0) {
+                continue;
+            }
+            rc = mqtt_task_publish_topic(&mqtt_context,DEVICE_ONLINE_TOPIC,DEVICE_ONLINE_MESSAGE,strlen(DEVICE_ONLINE_MESSAGE));
+            if (rc != 0) {
+                mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
+            } else {
+                mqtt_msg.head.id = MQTT_TASK_MSG_SUBSCRIBE_DEVICE_CTRL;
+                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
+            }
+        }
+
+
+        /*处理发布回应*/
+        if (mqtt_msg_recv.head.id == MQTT_TASK_MSG_PUBLIC_CTRL_RSP) {
 
             if (mqtt_context.is_connected == 0) {
                 continue;
