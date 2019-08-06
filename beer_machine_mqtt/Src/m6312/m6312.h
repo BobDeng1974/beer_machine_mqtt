@@ -39,7 +39,7 @@ typedef enum
 typedef enum
 {
     M6312_CONNECT_TCP,
-    M6312_CONENCT_UDP
+    M6312_CONNECT_UDP
 }m6312_connect_type_t;
 
  /** sim卡注册状态枚举*/
@@ -51,7 +51,15 @@ typedef enum
     M6312_SIM_REGISTER_DENY,
     M6312_SIM_REGISTER_UNKNOW,
     M6312_SIM_REGISTER_ROAM
-}m6312_sim_register_status_t;
+}m6312_sim_status_t;
+ /** m6312注册状态*/
+typedef struct
+{
+    m6312_sim_status_t sim_status;
+    char lac[10];
+    char cid[10];
+    char rssi[10];
+}m6312_register_status_t;
 
 /** GPRS网络附着状态枚举*/
 typedef enum
@@ -66,6 +74,14 @@ typedef enum
     M6312_GPRS_NET_ACTIVE = 1,
     M6312_GPRS_NET_INACTIVE = 0
 }m6312_gprs_net_status_t;
+
+/** M6312接收缓存模式枚举*/
+typedef enum
+{
+    M6312_DEACTIVE_REGISTER_REPORT = 0,
+    M6312_ACTIVE_REGISTER_REPORT = 1,
+    M6312_ACTIVE_REGISTER_AND_LOCATION_REPORT = 2,
+}m6312_register_mode_t;
 
 /** M6312接收缓存模式枚举*/
 typedef enum
@@ -94,6 +110,28 @@ typedef enum
     SIM_OPERATOR_CHINA_MOBILE,
     SIM_OPERATOR_CHINA_UNICOM
 }m6312_sim_operator_t;
+
+/** M6312自动上报枚举*/
+typedef enum
+{
+    M6312_AUTO_REPORT_MODE_ON = 1,
+    M6312_AUTO_REPORT_MODE_OFF = 0
+}m6312_auto_report_mode_t;
+
+
+#define  BASE_CNT_MAX  5
+typedef struct
+{
+    char lac[8];
+    char cid[8];
+    char rssi[4]; 
+}base_t;
+
+typedef struct
+{
+    base_t base[BASE_CNT_MAX];
+    int cnt;
+}base_information_t;/**< 基站信息*/
 
 /**
 * @brief M6312模块开机
@@ -157,7 +195,16 @@ int m6312_get_sim_card_status(m6312_sim_card_status_t *status);
 */
 int m6312_get_sim_card_id(char *sim_id);
 
-
+/**
+* @brief M6312模块获取运营商
+* @param *sim_operator  运营商指针 @see m6312_sim_operator_t
+* @return 获取是否成功
+* @retval 0 获取成功
+* @return -1 获取失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_operator(m6312_sim_operator_t *sim_operator);
 /**
 * @brief M6312模块获取GPRS附着状态
 * @param status gprs状态指针
@@ -214,14 +261,43 @@ int m6312_get_gprs_net_status(m6312_gprs_net_status_t *status);
 int m6312_set_gprs_net(m6312_gprs_net_status_t status);
 
 /**
+* @brief M6312模块设置注册模式
+* @param mode 注册模式 @see m6312_register_mode_t
+* @return M6312模块设置注册模式是否成功
+* @retval 0 成功
+* @retval -1 失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_register_mode(m6312_register_mode_t mode);
+
+/**
 * @brief M6312模块获取sim卡注册状态
 * @param status sim卡注册状态
 * @return 获取状态是否成功
 * @attention 无
 * @note 无
 */
-int m6312_get_sim_register_status(m6312_sim_register_status_t *status);
+int m6312_get_register_status(m6312_register_status_t *register_status);
 
+/**
+* @brief M6312模块获取主基站信号强度字符串
+* @param rssi 信号强度字符指针
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_master_base_rssi(char *rssi);
+
+/**
+* @brief M6312模块获取所有基站信息
+* @param base_info 基站信息指针
+* @param limit 基站信息最大数量
+* @return 是否成功 0：成功 -1：失败
+* @attention 无
+* @note 无
+*/
+int m6312_get_all_base_info(base_information_t *base_info,uint8_t limit);
 /**
 * @brief M6312模块获取连接模式
 * @param mode 连接模式指针@see m6312_connection_mode_t
@@ -292,9 +368,20 @@ int m6312_get_transport_mode(m6312_transport_mode_t *mode);
 */
 int m6312_set_transport_mode(m6312_transport_mode_t mode);
 
+
+/**
+* @brief M6312模块配置传送模式
+* @param mode 自动上报模式 @see m6312_auto_report_mode_t
+* @return M6312模块配置自动上报模式是否成功
+* @retval 0 配置成功
+* @retval -1 配置失败
+* @attention 无
+* @note 无
+*/
+int m6312_set_auto_report_mode(m6312_auto_report_mode_t mode);
 /**
 * @brief M6312模块建立TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @param host 要建立连接的主机名
 * @param type 建立连接的类型
 * @return 建立连接是否成功
@@ -303,18 +390,18 @@ int m6312_set_transport_mode(m6312_transport_mode_t mode);
 * @attention 无
 * @note 无
 */
-int m6312_connect(uint8_t index,char *host,char *port,m6312_connect_type_t type);
+int m6312_connect(const uint8_t socket,const char *host,const char *port,m6312_connect_type_t type);
 
 /**
 * @brief M6312模块关闭TCP或者UDP连接
-* @param index 建立连接的通道号
+* @param socket 建立连接的通道号
 * @return 关闭连接是否成功
 * @retval 0 关闭连接成功
 * @retval -1 关闭连接失败
 * @attention 无
 * @note 无
 */
-int m6312_close(uint8_t index);
+int m6312_close(const uint8_t socket);
 
 /**
 * @brief M6312模块发送数据
@@ -327,7 +414,7 @@ int m6312_close(uint8_t index);
 * @attention 无
 * @note 无
 */
-int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size);
+int m6312_send(const uint8_t socket_id,const uint8_t *buffer,uint16_t size);
 
 /**
 * @brief M6312模块接收数据
@@ -340,7 +427,7 @@ int m6312_send(uint8_t socket_id,uint8_t *buffer,uint16_t size);
 * @attention 无
 * @note 无
 */
-int m6312_recv(uint8_t socket_id,uint8_t *recv_buffer,uint16_t size);
+int m6312_recv(const uint8_t socket_id,uint8_t *recv_buffer,uint16_t size);
 
 
 

@@ -60,7 +60,7 @@
                 </option>
                 <option>
                     <name>CExtraOptions</name>
-                    <state>--jlinkExecCommand=SetRTTSearchRanges 0x2000d000 0x1000;
+                    <state>--jlinkExecCommand=SetRTTSearchRanges 0x2000d000 0x1000;
 </state>
                 </option>
                 <option>

@@ -228,6 +228,7 @@
                     <state>STM32F103xE</state>
                     <state>DEVICE_ONLINE</state>
                     <state>DEBUG_ASSERT</state>
+                    <state>HAVE_CONFIG_H</state>
                 </option>
                 <option>
                     <name>CCPreprocFile</name>
@@ -379,19 +380,18 @@
                     <state>$PROJ_DIR$/../Src/md5</state>
                     <state>$PROJ_DIR$/../Src/ntp</state>
                     <state>$PROJ_DIR$/../Src/socket</state>
-                    <state>$PROJ_DIR$/../Src/led</state>
+                    <state>$PROJ_DIR$/../Src/device_env</state>
                     <state>$PROJ_DIR$/../Src/utils</state>
                     <state>$PROJ_DIR$/../Src/tm1629a</state>
                     <state>$PROJ_DIR$/../Src/bootloader_if</state>
-                    <state>$PROJ_DIR$/../Src/flash_utils</state>
+                    <state>$PROJ_DIR$/../Src/flash_if</state>
                     <state>$PROJ_DIR$/../Src/firmware_version</state>
                     <state>$PROJ_DIR$/../Src/cjson</state>
                     <state>$PROJ_DIR$/../Src/lib/src</state>
                     <state>$PROJ_DIR$/../Src/m6312</state>
                     <state>$PROJ_DIR$/../Src/debug/log/uart_console</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTClient-C/src</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTClient-C/src/FreeRTOS</state>
-                    <state>$PROJ_DIR$/../Src/mqtt/paho/MQTTPacket/src</state>
+                    <state>$PROJ_DIR$/../Src/mqtt/inc</state>
+                    <state>$PROJ_DIR$/../Src/mqtt/net</state>
                 </option>
                 <option>
                     <name>CCStdIncCheck</name>
@@ -1097,7 +1097,7 @@
             <group>
                 <name>bsp</name>
                 <file>
-                    <name>$PROJ_DIR$\..\Src\board\beer_machine.c</name>
+                    <name>$PROJ_DIR$\..\Src\board\board.c</name>
                 </file>
             </group>
             <group>
@@ -1131,9 +1131,42 @@
                 </file>
             </group>
             <group>
+                <name>device_env</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\device_env\device_env.c</name>
+                </file>
+            </group>
+            <group>
+                <name>flash_if</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\flash_if\flash_if.c</name>
+                </file>
+            </group>
+            <group>
+                <name>http</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\http\http_client.c</name>
+                </file>
+            </group>
+            <group>
+                <name>json</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\cjson\cJSON.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\cjson\cJSON_Utils.c</name>
+                </file>
+            </group>
+            <group>
                 <name>lib</name>
                 <file>
                     <name>$PROJ_DIR$\..\Src\lib\src\circle_buffer.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\lib\src\crc16.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\lib\src\md5.c</name>
                 </file>
                 <file>
                     <name>$PROJ_DIR$\..\Src\lib\src\printf.c</name>
@@ -1157,43 +1190,55 @@
             <group>
                 <name>mqtt</name>
                 <group>
-                    <name>mqtt_client</name>
+                    <name>mqtt_net</name>
                     <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTClient-C\src\MQTTClient.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTClient-C\src\FreeRTOS\MQTTFreeRTOS.c</name>
+                        <name>$PROJ_DIR$\..\Src\mqtt\net\mqtt_net.c</name>
                     </file>
                 </group>
-                <group>
-                    <name>mqtt_packet</name>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTConnectClient.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTDeserializePublish.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTFormat.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTPacket.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTSerializePublish.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\Src\mqtt\paho\MQTTPacket\src\MQTTSubscribeClient.c</name>
-                    </file>
-                </group>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_client.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_packet.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\mqtt\src\mqtt_socket.c</name>
+                </file>
+            </group>
+            <group>
+                <name>ntp</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\ntp\ntp.c</name>
+                </file>
+            </group>
+            <group>
+                <name>socket</name>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\socket\socket.c</name>
+                </file>
             </group>
             <group>
                 <name>tasks</name>
                 <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\adc_task.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\compressor_task.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\mqtt_task.c</name>
+                </file>
+                <file>
                     <name>$PROJ_DIR$\..\Src\tasks\net_task.c</name>
                 </file>
                 <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\report_task.c</name>
+                </file>
+                <file>
                     <name>$PROJ_DIR$\..\Src\tasks\tasks_init.c</name>
+                </file>
+                <file>
+                    <name>$PROJ_DIR$\..\Src\tasks\temperature_task.c</name>
                 </file>
             </group>
             <file>

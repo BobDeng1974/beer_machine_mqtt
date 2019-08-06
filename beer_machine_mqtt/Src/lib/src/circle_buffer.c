@@ -55,8 +55,10 @@ void circle_buffer_init(circle_buffer_t *cb,uint8_t *buffer,uint32_t size)
 * @
 * @note
 */
-uint8_t circle_buffer_size(circle_buffer_t *cb)
+uint32_t circle_buffer_size(circle_buffer_t *cb)
 {
+    CIRCLE_BUFFER_ASSERT(cb);
+    CIRCLE_BUFFER_ASSERT(cb->write >= cb->read);
     return cb->write - cb->read;
 }
 

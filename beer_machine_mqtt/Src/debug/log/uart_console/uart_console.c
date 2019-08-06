@@ -39,7 +39,7 @@ void uart_console_init(void)
 {
     int rc;
 
-    xuart_init(&xuart_hal_driver);
+    xuart_register_hal_driver(&xuart_hal_driver);
 
     rc = xuart_open(&uart_console_handle,UART_CONSOLE_PORT,UART_CONSOLE_BAUD_RATES,UART_CONSOLE_DATA_BITS,UART_CONSOLE_STOP_BITS,
                      log_recv_buffer, UART_CONSOLE_RX_BUFFER_SIZE,log_send_buffer, UART_CONSOLE_TX_BUFFER_SIZE);

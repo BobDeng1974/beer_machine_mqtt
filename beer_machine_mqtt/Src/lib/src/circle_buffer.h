@@ -47,7 +47,7 @@ void circle_buffer_init(circle_buffer_t *cb,uint8_t *buffer,uint32_t size);
 * @
 * @note
 */
-uint8_t circle_buffer_size(circle_buffer_t *cb);
+uint32_t circle_buffer_size(circle_buffer_t *cb);
 
 /**
 * @brief 循环缓存刷新

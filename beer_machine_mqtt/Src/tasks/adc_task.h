@@ -14,7 +14,7 @@
 ADC_TASK_BEGIN
 
 
-extern osThreadId   adc_task_handle;
+extern osThreadId   adc_task_hdl;
 void adc_task(void const * argument);
 
 

@@ -37,7 +37,7 @@
 /******************************************************************************/
 /*    配置开始                                                                */
 /******************************************************************************/
-#define  LOG_PRINTF_BUFFER_SIZE    256
+#define  LOG_PRINTF_BUFFER_SIZE    512
 #define  LOG_LEVEL_GLOBLE_DEFAULT  LOG_LEVEL_DEBUG 
 #define  LOG_USE_SEGGER_RTT        1
 #define  LOG_USE_UART_CONSOLE      0

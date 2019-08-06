@@ -105,14 +105,14 @@ int xuart_open(xuart_handle_t *handle,uint8_t port,uint32_t baudrate,uint8_t dat
 int xuart_close(xuart_handle_t *handle);
 
 /**
-* @brief 串口全局初始化
+* @brief 串口注册驱动
 * @param driver 串口硬件驱动
 * @return 初始化是否成功
 * @retval 0 成功
 * @retval -1 失败
 * @note
 */
-int xuart_init(xuart_hal_driver_t *driver);
+int xuart_register_hal_driver(xuart_hal_driver_t *driver);
 
 /**
 * @brief 串口中断接收一个字节

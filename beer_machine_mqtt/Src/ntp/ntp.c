@@ -87,12 +87,12 @@ int ntp_sync_time(uint32_t *new_time)
   int sockfd, n; // Socket file descriptor and the n return result from writing/reading from the socket.
   int portno = 123; // NTP UDP port number.
   /*中国科学院国家授时中心*/
-  const char *host1_name = "ntp.ntsc.ac.cn"; // NTP server host-name.
+   char *host1_name = "ntp.ntsc.ac.cn"; // NTP server host-name.
   /*阿里云NTP*/
-  const char *host2_name = "ntp1.aliyun.com"; // NTP server host-name.
-  static const char *host_name= NULL;
+   char *host2_name = "ntp1.aliyun.com"; // NTP server host-name.
+  static char *host_name= NULL;
   if(host_name == NULL){
-  host_name = host1_name;
+    host_name = host1_name;
   }
   // Create and zero out the packet. All 48 bytes worth.
   ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -106,7 +106,7 @@ int ntp_sync_time(uint32_t *new_time)
   // Create a UDP socket, convert the host-name to an IP address, set the port number,
   // connect to the server, send the packet, and then read in the return packet.
 
-  sockfd = socket_connect(host_name,portno,SOCKET_PROTOCOL_UDP);; // Create a UDP socket.
+  sockfd = socket_open(host_name,portno,SOCKET_PROTOCOL_UDP);; // Create a UDP socket.
   if(sockfd < 0 ){
   log_error( "ERROR opening socket\r\n" );
   return -1;
@@ -117,24 +117,24 @@ int ntp_sync_time(uint32_t *new_time)
   packet.origTm_s = big_little_swap32(t0);
   
  // Send it the NTP packet it wants. If n == -1, it failed.
-  n = socket_send(sockfd, ( char* ) &packet, sizeof( ntp_packet ) ,NTP_TIMEOUT);
+  n = socket_write(sockfd, ( char* ) &packet, sizeof( ntp_packet ) ,NTP_TIMEOUT);
   if( n < 0 ){
   log_error( "ERROR writing to socket\r\n" );
   /*关闭socket*/
-  socket_disconnect(sockfd);
+  socket_close(sockfd);
   return -1;
   }
   
   // Wait and receive the packet back from the server. If n == -1, it failed.
-  n = socket_recv(sockfd, ( char* ) &packet, sizeof( ntp_packet ) ,NTP_TIMEOUT);
+  n = socket_read(sockfd, ( char* ) &packet, sizeof( ntp_packet ) ,NTP_TIMEOUT);
   if ( n < 0 ){
   log_error( "ERROR reading from socket\r\n" );
   /*关闭socket*/
-  socket_disconnect(sockfd); 
+  socket_close(sockfd); 
   return -1;
   }
   /*关闭socket*/
-  socket_disconnect(sockfd);  
+  socket_close(sockfd);  
   /*收到了指定的数据 -没有未同步警告，服务器模式*/
   if(n == sizeof( ntp_packet ) && LI(packet)!= 3){
   /*收到消息的时间*/

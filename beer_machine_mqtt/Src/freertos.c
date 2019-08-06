@@ -56,7 +56,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */     
-#include "beer_machine.h"
+#include "board.h"
 #include "tasks_init.h"
 #include "adc_task.h"
 #include "temperature_task.h"
@@ -189,8 +189,8 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  //osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  //defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
 
@@ -220,9 +220,9 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    cpu = osGetCPUUsage();
+    //cpu = osGetCPUUsage();
 
-    log_debug("cpu:%d.\r\n",cpu);
+    //log_debug("cpu:%d.\r\n",cpu);
     /*设置日志输出等级*/
     read = log_read(cmd_line,16);
     cmd_line[read] = 0;
@@ -230,6 +230,12 @@ void StartDefaultTask(void const * argument)
         level = atoi(cmd_line + strlen("set level "));
         log_set_level(level);
     }
+
+    if (strncmp(cmd_line,"clear",strlen("clear")) == 0) {
+        int device_env_clear();
+        device_env_clear();
+    }
+
     osDelay(500);
   }
   /* USER CODE END StartDefaultTask */
