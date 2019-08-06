@@ -269,7 +269,8 @@ int socket_write(const int handle,const char *buffer,int size,uint32_t timeout)
     int write_total = 0,write;
 
     tiny_timer_t timer;
-
+    
+    osDelay(50);
     tiny_timer_init(&timer,0,timeout);
 
     while (tiny_timer_value(&timer) > 0 && write_total < size) {
@@ -279,7 +280,7 @@ int socket_write(const int handle,const char *buffer,int size,uint32_t timeout)
         }
         write_total += write;
     }
-
+    osDelay(100);
     return write_total;
 }
 

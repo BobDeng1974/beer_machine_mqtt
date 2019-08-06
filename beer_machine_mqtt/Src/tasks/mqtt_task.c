@@ -682,9 +682,6 @@ void mqtt_task(void const * argument)
             if (rc != 0) {
                 mqtt_msg.head.id = MQTT_TASK_MSG_NET_DISCONNECT;
                 log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
-            } else {
-                mqtt_msg.head.id = MQTT_TASK_MSG_WAIT_MESSAGE;
-                log_assert_bool_false(xQueueSend(mqtt_task_msg_q_id,&mqtt_msg,5) == pdPASS);
             }
         }
 

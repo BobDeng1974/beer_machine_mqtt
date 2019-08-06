@@ -518,7 +518,7 @@ err_exit:
         log_error("report log err.\r\n");  
         return -1;
     }
-    log_debug("log rsp:\r\n%s",http_client_ctx->rsp_buffer);
+    log_debug("log rsp:%s\r\n",http_client_ctx->rsp_buffer);
     rc = report_task_parse_log_rsp_json(http_client_ctx->rsp_buffer);
     if (rc != 0) {
         log_error("json parse log rsp error.\r\n");  
