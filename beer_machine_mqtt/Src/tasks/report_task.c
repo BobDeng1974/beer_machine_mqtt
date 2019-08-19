@@ -1463,10 +1463,6 @@ static void report_task_get_sn(char *sn)
     sn[SN_LEN] = 0;
 }
 
-#define  TYPE                   "freezer"
-#define  VENDOR                 "meiling"
-#define  OPT_CODE_CHINA_MOBILE  "china mobile"
-#define  OPT_CODE_CHINA_UNICOM  "china unicom"
 
 static void report_task_init()
 {
