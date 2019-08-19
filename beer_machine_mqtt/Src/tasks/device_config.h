@@ -3,17 +3,22 @@
 
 
 /*啤酒机默认平台通信参数表*/
-#define  URL_LOG                                    "http://v2236p1176.imwork.net:22132/device/status"
-#define  URL_ACTIVE                                 "http://v2236p1176.imwork.net:22132/device/active"
-#define  URL_LOOP_CONFIG                            "http://v2236p1176.imwork.net:22132/device/cfg"
-#define  URL_FAULT                                  "http://v2236p1176.imwork.net:22132/device/exception/"
-#define  URL_FAULT_DELETE                           "http://v2236p1176.imwork.net:22132/device/exception/recover"
-#define  URL_UPGRADE                                "http://v2236p1176.imwork.net:22132/device/getUpgradeInfo"
+#define  URL_LOG                                    "http://syll-test.mymlsoft.com:8089/device/status"
+#define  URL_ACTIVE                                 "http://syll-test.mymlsoft.com:8089/device/active"
+#define  URL_LOOP_CONFIG                            "http://syll-test.mymlsoft.com:8089/device/cfg"
+#define  URL_FAULT                                  "http://syll-test.mymlsoft.com:8089/device/exception/"
+#define  URL_FAULT_DELETE                           "http://syll-test.mymlsoft.com:8089/device/exception/recover"
+#define  URL_UPGRADE                                "http://syll-test.mymlsoft.com:8089/device/getUpgradeInfo"
 
 #define  BOUNDARY                                   "##wkxboot##"
 #define  KEY                                        "ML-freezer"
 #define  SOURCE                                     "ML-freezer"
-#define  MODEL                                      "D-496"
+#define  MODEL                                      "SD-496"
+#define  TYPE                                       "freezer"
+#define  VENDOR                                     "meiling"
+#define  OPT_CODE_CHINA_MOBILE                      "46000"
+#define  OPT_CODE_CHINA_UNICOM                      "46001"
+
 #define  SN_ADDR                                    0x803f800
 
 #define  SN_LEN                                     24 /**< SN字节长度*/

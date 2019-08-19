@@ -43,8 +43,8 @@ osThreadId  mqtt_task_hdl;
 #define  DEFAULT_MQTT_PORT             1883
 #define  DEFAULT_CMD_TIMEOUT_MS        5000
 #define  DEFAULT_CONN_TIMEOUT_MS       5000
-#define  DEFAULT_MQTT_QOS              MQTT_QOS_1
-#define  DEFAULT_KEEP_ALIVE_SEC        60
+#define  DEFAULT_MQTT_QOS              MQTT_QOS_0
+#define  DEFAULT_KEEP_ALIVE_SEC        60 * 2
 #define  DEFAULT_CLIENT_ID             "c_client"
 #define  DEFAULT_USER_NAME             "a24a642b4d1d473b"
 #define  DEFAULT_USER_PASSWD           "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0YW8xLmppYW5nIiwidXNlciI6InRvdSJ9._yv05gR0dAFJeDoEPI8Wo5qB01Gf-cM8_M1SbdoV9jQ"
