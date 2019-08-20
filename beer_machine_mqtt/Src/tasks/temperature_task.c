@@ -220,7 +220,7 @@ void temperature_task(void const *argument)
                     compressor_msg.content.temperature_float = temperature.value_float;
                     /*上报任务温度消息*/
                     report_msg.head.id = REPORT_TASK_MSG_TEMPERATURE_UPDATE;
-                    report_msg.content.temperature_float[0] = temperature.value_float;
+                    report_msg.content.temperature_float[0] = temperature.value_int;
                     log_info("teperature change to:%.2f C.\r\n",temperature.value_float);
                 }
                 temperature.change = false;       
