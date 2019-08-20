@@ -427,8 +427,13 @@ static char *report_task_build_log_json_str(device_log_t *log)
     log_json = cJSON_CreateObject();
     cJSON_AddStringToObject(log_json,"sn",log->sn);
     cJSON_AddNumberToObject(log_json,"ambTemp",(int)log->temperature_env);
+
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_C
     cJSON_AddNumberToObject(log_json,"refTemp",(int)log->temperature_cold);
+#else
     cJSON_AddNumberToObject(log_json,"frzTemp",(int)log->temperature_freeze);
+#endif
+
     cJSON_AddNumberToObject(log_json,"comState",log->compressor_is_pwr_on);
     cJSON_AddNumberToObject(log_json,"runTime",log->compressor_run_time / (1000 * 60));/*单位分钟*/
 
@@ -1442,7 +1447,7 @@ static int report_task_dispatch_device_config(device_config_t *config)
     }
     log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&compressor_msg,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
 
-#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_C
     /*分发冷藏温度*/
     compressor_msg.head.id = COMPRESSOR_TASK_MSG_TYPE_TEMPERATURE_SETTING;
     compressor_msg.content.temperature_setting_min = config->temperature_cold_min;
@@ -1672,12 +1677,20 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_COMPRESSOR_RUN_TIME) { 
             report_task_context.log.compressor_run_time += msg_recv.content.run_time;
         }
+        /*压缩机工作状态*/
+        if (msg_recv.head.id == REPORT_TASK_MSG_COMPRESSOR_STATUS) {
+            /*更新日志压缩机状态*/
+            report_task_context.log.compressor_is_pwr_on = msg_recv.content.is_pwr_on_enable;
+        }
 
         /*温度消息*/
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_UPDATE) { 
-            report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0];
-            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[0];
-            report_task_context.log.temperature_env = msg_recv.content.temperature_float[0] + 10;
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_C
+            report_task_context.log.temperature_cold = msg_recv.content.temperature_float[0] - 20;
+#else
+            report_task_context.log.temperature_freeze = msg_recv.content.temperature_float[0] - 50;
+#endif
+            report_task_context.log.temperature_env = msg_recv.content.temperature_float[0];
             if (report_task_context.is_temp_sensor_err == 1) {
                 msg_temp.head.id = REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR;
                 log_assert_bool_false(xQueueSend(report_task_msg_q_id,&msg_temp,REPORT_TASK_PUT_MSG_TIMEOUT) == pdPASS);
@@ -1691,13 +1704,16 @@ void report_task(void const *argument)
             report_task_context.log.temperature_cold = 0xFF;
             report_task_context.log.temperature_env = 0xFF;
             report_task_context.log.temperature_freeze = 0xFF;
-#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_C
             fault.code = 110;
 #else
             fault.code = 120;
 #endif
             fault.status = HAL_FAULT_STATUS_FAULT;
-            report_task_insert_fault(&report_task_context.fault.queue,&fault);  
+            report_task_insert_fault(&report_task_context.fault.queue,&fault); 
+            fault.code = 110;
+            report_task_insert_fault(&report_task_context.fault.queue,&fault); 
+
             /*立即开启故障上报*/
             report_task_start_fault_timer(0);
         }
@@ -1706,13 +1722,15 @@ void report_task(void const *argument)
         if (msg_recv.head.id == REPORT_TASK_MSG_TEMPERATURE_SENSOR_FAULT_CLEAR) { 
             report_task_context.is_temp_sensor_err = 0;   
             device_fault_information_t fault;
-#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_COLD
+#if CONST_DEVICE_TYPE == CONST_DEVICE_TYPE_C
             fault.code = 110;
 #else
             fault.code = 120;
 #endif
             fault.status = HAL_FAULT_STATUS_FAULT_CLEAR;
             report_task_insert_fault(&report_task_context.fault.queue,&fault); 
+            //fault.code = 110;
+            //report_task_insert_fault(&report_task_context.fault.queue,&fault); 
             /*立即开启故障上报*/
             report_task_start_fault_timer(0);  
         }
@@ -1758,7 +1776,7 @@ void report_task(void const *argument)
 
             }
           }
-       }
+        }
    }
 
  }

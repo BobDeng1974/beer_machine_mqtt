@@ -187,7 +187,8 @@ void compressor_task(void const *argument)
 {
     float setting_min,setting_max;
     compressor_task_message_t msg_recv,msg_temp;
-    
+    report_task_message_t report_msg;
+
     /*上电先关闭压缩机*/
     compressor_pwr_turn_off();
     /*定时器初始化*/
@@ -342,7 +343,12 @@ void compressor_task(void const *argument)
                 /*关闭压缩机*/
                 compressor_pwr_turn_off(); 
                 /*打开等待定时器*/ 
-                compressor_timer_start(COMPRESSOR_TASK_WAIT_TIMEOUT); 
+                compressor_timer_start(COMPRESSOR_TASK_WAIT_TIMEOUT);
+
+                /*发送压缩机工作状态*/
+                report_msg.head.id = REPORT_TASK_MSG_COMPRESSOR_STATUS;
+                report_msg.content.is_pwr_on_enable = 0;
+                log_assert_bool_false(xQueueSend(report_task_msg_q_id,&report_msg,COMPRESSOR_TASK_PUT_MSG_TIMEOUT) == pdPASS);     
             }
         }
 
@@ -352,7 +358,12 @@ void compressor_task(void const *argument)
             compressor.is_pwr_enable = true;
             /*发送消息更新压缩机工作状态*/
             msg_temp.head.id = COMPRESSOR_TASK_MSG_TYPE_UPDATE_STATUS;
-            log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&msg_temp,COMPRESSOR_TASK_PUT_MSG_TIMEOUT) == pdPASS);    
+            log_assert_bool_false(xQueueSend(compressor_task_msg_q_id,&msg_temp,COMPRESSOR_TASK_PUT_MSG_TIMEOUT) == pdPASS); 
+
+            /*发送压缩机工作状态*/
+            report_msg.head.id = REPORT_TASK_MSG_COMPRESSOR_STATUS;
+            report_msg.content.is_pwr_on_enable = 1;
+            log_assert_bool_false(xQueueSend(report_task_msg_q_id,&report_msg,COMPRESSOR_TASK_PUT_MSG_TIMEOUT) == pdPASS);      
         }
 
         /*压缩机工作时间统计*/

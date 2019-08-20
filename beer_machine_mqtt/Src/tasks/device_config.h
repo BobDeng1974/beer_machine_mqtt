@@ -37,13 +37,14 @@
 #define  DEFAULT_REPORT_LOOP_CONFIG_INTERVAL        (5 * 60 * 1000) /**< 默认配置上报间隔时间ms*/
 
 /*虽然压缩机温控可调，但也不能超出极限值*/
-#define  DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT   -20 /**< 可配置温度最低值*/
+#define  DEFAULT_COMPRESSOR_LOW_TEMPERATURE_LIMIT   -50 /**< 可配置温度最低值*/
 #define  DEFAULT_COMPRESSOR_HIGH_TEMPERATURE_LIMIT  30  /**< 可配置温度最高值*/
 
 /*定义设备类型*/
-#define  CONST_DEVICE_TYPE_COLD                     0xaa
-#define  CONST_DEVICE_TYPE_FREEZE                   0xbb
-#define  CONST_DEVICE_TYPE                          CONST_DEVICE_TYPE_COLD
+#define  CONST_DEVICE_TYPE_C                        0xaa
+#define  CONST_DEVICE_TYPE_D                        0xbb
+#define  CONST_DEVICE_TYPE_CD                       0xcc
+#define  CONST_DEVICE_TYPE                          CONST_DEVICE_TYPE_D
 
 
 

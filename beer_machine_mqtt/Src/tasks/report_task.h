@@ -24,6 +24,7 @@ void report_task(void const * argument);
 #define  REPORT_TASK_MSG_REPORT_FAULT                    0x100a
 #define  REPORT_TASK_MSG_LOOP_CONFIG                     0x100b
 #define  REPORT_TASK_MSG_COMPRESSOR_RUN_TIME             0x100c
+#define  REPORT_TASK_MSG_COMPRESSOR_STATUS               0x100d
 
 #define  REPORT_TASK_0_RETRY_TIMEOUT                    (1 * 60 * 1000)
 #define  REPORT_TASK_1_RETRY_TIMEOUT                    (1 * 60 * 1000)
@@ -46,6 +47,7 @@ typedef struct
         char sim_id[M6312_SIM_ID_STR_LEN];
         float temperature_float[4];
         uint32_t run_time;/*运行时间，单位ms*/
+        uint8_t is_pwr_on_enable;
     }content;
 }report_task_message_t;
 
