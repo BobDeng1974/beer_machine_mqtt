@@ -189,7 +189,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 600);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -234,6 +234,41 @@ void StartDefaultTask(void const * argument)
     if (strncmp(cmd_line,"clear",strlen("clear")) == 0) {
         int device_env_clear();
         device_env_clear();
+    }
+
+    if (strncmp(cmd_line,"active=?",strlen("active=?")) == 0) {
+        int m6312_get_gprs_net_status(m6312_gprs_net_status_t *status);
+        m6312_gprs_net_status_t status;
+        m6312_get_gprs_net_status(&status);
+    }
+    if (strncmp(cmd_line,"active=0",strlen("active=0")) == 0) {
+        int m6312_set_gprs_net(m6312_gprs_net_status_t status);
+        m6312_gprs_net_status_t status = M6312_GPRS_NET_INACTIVE;
+        m6312_set_gprs_net(status);
+    }
+
+    if (strncmp(cmd_line,"active=1",strlen("active=1")) == 0) {
+        int m6312_set_gprs_net(m6312_gprs_net_status_t status);
+        m6312_gprs_net_status_t status = M6312_GPRS_NET_ACTIVE;
+        m6312_set_gprs_net(status);
+    }
+
+    if (strncmp(cmd_line,"attach=?",strlen("active=?")) == 0) {
+        int m6312_get_gprs_attach_status(m6312_gprs_attach_status_t *status);
+        m6312_gprs_attach_status_t status;
+        m6312_get_gprs_attach_status(&status);
+    }
+
+    if (strncmp(cmd_line,"attach=1",strlen("attach=1")) == 0) {
+        int m6312_set_gprs_attach(m6312_gprs_attach_status_t status);
+        m6312_gprs_attach_status_t status = M6312_GPRS_ATTACH;
+        m6312_set_gprs_attach(status);
+    }
+
+    if (strncmp(cmd_line,"attach=0",strlen("attach=0")) == 0) {
+        int m6312_set_gprs_attach(m6312_gprs_attach_status_t status);
+        m6312_gprs_attach_status_t status = M6312_GPRS_DETACH;
+        m6312_set_gprs_attach(status);
     }
 
     osDelay(500);

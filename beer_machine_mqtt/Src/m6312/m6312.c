@@ -38,7 +38,7 @@ static uint8_t send_buffer[M6312_SEND_BUFFER_SIZE];/**< m6312串口发送缓存*
 #define  M6312_PWR_ON_TIMEOUT                              5000  /**< m6312模块开机超时时间*/
 #define  M6312_PWR_OFF_TIMEOUT                             15000 /**< m6312模块关机超时时间*/
 
-#define  M6312_RESPONSE_TIMEOUT                            20000 /**< m6312模块回应超时时间*/
+#define  M6312_RESPONSE_TIMEOUT                            30000 /**< m6312模块回应超时时间*/
 #define  M6312_RESPONSE_BUFFER_SIZE                        500   /**< m6312模块回应缓存大小*/
 #define  M6312_REQUEST_BUFFER_SIZE                         500   /**< m6312模块请求缓存大小*/
 #define  M6312_RESPONSE_LINE_CNT_MAX                       10    /**< m6312模块回应行的最大数量*/
@@ -431,7 +431,7 @@ int m6312_set_gprs_net(m6312_gprs_net_status_t status)
 {
     int rc;
     char response[M6312_RESPONSE_BUFFER_SIZE];
-    char *request = status == M6312_GPRS_NET_ACTIVE ? "AT+CGACT=1,1\r\n" : "AT+CGACT=1,0\r\n";
+    char *request = status == M6312_GPRS_NET_ACTIVE ? "AT+CGACT=1,1\r\n" : "AT+CGACT=0,1\r\n";
     at_command_t command;
 
     at_command_init(&command,&m6312_uart_handle,request,strlen(request),response,M6312_RESPONSE_BUFFER_SIZE,M6312_RESPONSE_TIMEOUT);

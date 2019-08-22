@@ -31,20 +31,20 @@ osMessageQId  mqtt_task_msg_q_id;
 osThreadId  mqtt_task_hdl;       
 
 /* Default Configurations */
-#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/cloud/cfreezer/DC2902493310000B06180338/m"
+#define  DEVICE_COMPRESSOR_CTRL_TOPIC      "/cloud/cfreezer/DC2902493310000B06188888/m"
 #define  DEVICE_COMPRESSOR_CTRL_RSP_TOPIC  "/cloud/cfreezer/SN999999999/m"
 
 #define  DEVICE_ONLINE_TOPIC               "/cloud/cfreezer/connected"
-#define  DEVICE_ONLINE_MESSAGE             "{\"sn\":\"DC2902493310000B06180338\"}"
+#define  DEVICE_ONLINE_MESSAGE             "{\"sn\":\"DC2902493310000B06188888\"}"
 #define  DEVICE_OFFLINE_TOPIC              "/cloud/cfreezer/disconnected"
-#define  DEVICE_OFFLINE_MESSAGE            "{\"sn\":\"DC2902493310000B06180338\"}"
+#define  DEVICE_OFFLINE_MESSAGE            "{\"sn\":\"DC2902493310000B06188888\"}"
 
 #define  DEFAULT_MQTT_HOST             "mqtt.mymlsoft.com"
 #define  DEFAULT_MQTT_PORT             1883
 #define  DEFAULT_CMD_TIMEOUT_MS        5000
 #define  DEFAULT_CONN_TIMEOUT_MS       5000
 #define  DEFAULT_MQTT_QOS              MQTT_QOS_0
-#define  DEFAULT_KEEP_ALIVE_SEC        40
+#define  DEFAULT_KEEP_ALIVE_SEC        10
 #define  DEFAULT_CLIENT_ID             "c_client"
 #define  DEFAULT_USER_NAME             "a24a642b4d1d473b"
 #define  DEFAULT_USER_PASSWD           "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0YW8xLmppYW5nIiwidXNlciI6InRvdSJ9._yv05gR0dAFJeDoEPI8Wo5qB01Gf-cM8_M1SbdoV9jQ"

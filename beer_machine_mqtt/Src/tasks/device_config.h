@@ -13,7 +13,7 @@
 #define  BOUNDARY                                   "##wkxboot##"
 #define  KEY                                        "ML-freezer"
 #define  SOURCE                                     "ML-freezer"
-#define  MODEL                                      "SD-496"
+#define  MODEL                                      "SC-496"
 #define  TYPE                                       "freezer"
 #define  VENDOR                                     "meiling"
 #define  OPT_CODE_CHINA_MOBILE                      "46000"
@@ -45,8 +45,6 @@
 #define  CONST_DEVICE_TYPE_D                        0xbb
 #define  CONST_DEVICE_TYPE_CD                       0xcc
 #define  CONST_DEVICE_TYPE                          CONST_DEVICE_TYPE_D
-
-
 
 
 
